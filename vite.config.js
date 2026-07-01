@@ -14,6 +14,10 @@ export default defineConfig(({ mode }) => {
       // En dev local sin Docker también funciona, solo que queda expuesto en la red local.
       host: true,
 
+      // Permite cualquier hostname externo (necesario para Cloudflare Tunnel).
+      // Sin esto, Vite rechaza requests con Host != localhost.
+      allowedHosts: 'all',
+
       // HMR (Hot Module Replacement): actualización en vivo sin recargar el navegador.
       // Cuando se accede desde afuera vía Cloudflare Tunnel, el WebSocket de HMR
       // necesita saber el dominio público. Se configura via VITE_HMR_HOST en el .env.
