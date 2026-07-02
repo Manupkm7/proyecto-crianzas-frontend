@@ -6,6 +6,9 @@ import DashboardPage from './pages/DashboardPage'
 import ChildrenListPage from './pages/ChildrenListPage'
 import ChildDetailPage from './pages/ChildDetailPage'
 import ChildFormPage from './pages/ChildFormPage'
+import UsersListPage from './pages/UsersListPage'
+import UserFormPage from './pages/UserFormPage'
+import UserActivityPage from './pages/UserActivityPage'
 
 export default function App() {
   return (
@@ -24,6 +27,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Niños */}
           <Route
             path="/children"
             element={
@@ -45,6 +50,40 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ChildDetailPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Usuarios */}
+          <Route
+            path="/users"
+            element={
+              <ProtectedRoute>
+                <UsersListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users/new"
+            element={
+              <ProtectedRoute>
+                <UserFormPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users/:id"
+            element={
+              <ProtectedRoute>
+                <UserFormPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users/:id/activity"
+            element={
+              <ProtectedRoute>
+                <UserActivityPage />
               </ProtectedRoute>
             }
           />

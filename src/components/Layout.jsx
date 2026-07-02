@@ -12,13 +12,18 @@ export default function Layout({ children }) {
     navigate('/login')
   }
 
-  // Determina la etiqueta del rol para mostrar en el encabezado.
+  const role = user?.roles?.[0]
+
   const roleLabel = {
     admin: 'Administrador',
     coordinador: 'Coordinador',
     institucion: 'Responsable de institución',
     representante: 'Representante',
-  }[user?.roles?.[0]] ?? user?.roles?.[0] ?? 'Usuario'
+  }[role] ?? role ?? 'Usuario'
+
+  // Admin, coordinador y responsable de institución acceden a la gestión de usuarios.
+  // El representante no tiene acceso (el backend lo rechaza con 403).
+  const canSeeUsers = ['admin', 'coordinador', 'institucion'].includes(role)
 
   return (
     <div className="app">
@@ -28,6 +33,7 @@ export default function Layout({ children }) {
         </div>
         <nav className="navbar-links">
           <Link to="/children">Niños</Link>
+          {canSeeUsers && <Link to="/users">Usuarios</Link>}
         </nav>
         <div className="navbar-user">
           <span className="user-info">
