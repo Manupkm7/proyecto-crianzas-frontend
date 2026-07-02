@@ -21,9 +21,18 @@ export default function Layout({ children }) {
     representante: 'Representante',
   }[role] ?? role ?? 'Usuario'
 
-  // Admin, coordinador y responsable de institución acceden a la gestión de usuarios.
-  // El representante no tiene acceso (el backend lo rechaza con 403).
-  const canSeeUsers = ['admin', 'coordinador', 'institucion'].includes(role)
+  const isAdmin = role === 'admin'
+  const isCoordinador = role === 'coordinador'
+  const isInstitucion = role === 'institucion'
+
+  // Enlace de instituciones: admin y coordinador ven la lista completa;
+  // el responsable va directo a editar la suya propia.
+  const institutionLink = isInstitucion
+    ? `/institutions/${user?.institution?.id}`
+    : '/institutions'
+
+  const canSeeInstitutions = isAdmin || isCoordinador || isInstitucion
+  const canSeeUsers = isAdmin || isCoordinador || isInstitucion
 
   return (
     <div className="app">
@@ -34,6 +43,11 @@ export default function Layout({ children }) {
         <nav className="navbar-links">
           <Link to="/children">Niños</Link>
           {canSeeUsers && <Link to="/users">Usuarios</Link>}
+          {canSeeInstitutions && (
+            <Link to={institutionLink}>
+              {isInstitucion ? 'Mi institución' : 'Instituciones'}
+            </Link>
+          )}
         </nav>
         <div className="navbar-user">
           <span className="user-info">

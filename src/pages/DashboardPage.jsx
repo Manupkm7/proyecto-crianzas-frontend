@@ -25,19 +25,13 @@ export default function DashboardPage() {
           {isAdmin
             ? 'Acceso total al sistema'
             : isCoordinador
-            ? 'Coordinación — acceso de lectura a todos los datos'
-            : institutionType === 'educacion'
-            ? 'Institución educativa'
-            : institutionType === 'salud'
-            ? 'Institución de salud'
-            : institutionType
-            ? user?.institution?.type_label ?? institutionType
-            : 'Sin institución asignada'}
+            ? 'Coordinación — acceso de lectura'
+            : user?.institution?.type_label ?? institutionType ?? 'Sin institución asignada'}
         </p>
       </div>
 
       <div className="card-grid">
-        {/* Tarjeta de niños: visible para todos */}
+        {/* Niños — visible para todos */}
         <div className="card">
           <h2>Niños registrados</h2>
           <p>
@@ -54,7 +48,7 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* Tarjeta de nuevo niño: no disponible para coordinador (solo lectura) */}
+        {/* Registrar niño — no disponible para coordinador (solo lectura) */}
         {canCreateChildren && (
           <div className="card">
             <h2>Registrar nuevo niño</h2>
@@ -65,13 +59,13 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Tarjeta de usuarios: admin y responsable de institución */}
+        {/* Usuarios — admin y responsable de institución */}
         {canManageUsers && (
           <div className="card">
             <h2>Gestión de usuarios</h2>
             <p>
               {isAdmin
-                ? 'Administrá todos los usuarios del sistema: sus roles, instituciones y accesos.'
+                ? 'Administrá todos los usuarios del sistema: roles, instituciones y accesos.'
                 : 'Gestioná los representantes de tu institución y revisá su actividad.'}
             </p>
             <Link to="/users" className="btn btn-secondary">
@@ -80,7 +74,33 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Tarjeta "Mi perfil": acceso rápido para representantes */}
+        {/* Instituciones — admin y coordinador ven la lista; responsable edita la suya */}
+        {(isAdmin || isCoordinador) && (
+          <div className="card">
+            <h2>Instituciones</h2>
+            <p>
+              {isAdmin
+                ? 'Creá, modificá o desactivá instituciones del sistema.'
+                : 'Consultá el listado de instituciones registradas.'}
+            </p>
+            <Link to="/institutions" className="btn btn-secondary">
+              Ver instituciones
+            </Link>
+          </div>
+        )}
+
+        {/* Mi institución — acceso rápido para el responsable */}
+        {isInstitucion && user?.institution?.id && (
+          <div className="card">
+            <h2>Mi institución</h2>
+            <p>Consultá y actualizá los datos de contacto de tu institución.</p>
+            <Link to={`/institutions/${user.institution.id}`} className="btn btn-secondary">
+              Ver mi institución
+            </Link>
+          </div>
+        )}
+
+        {/* Mi perfil — acceso rápido para representantes */}
         {isRepresentante && (
           <div className="card">
             <h2>Mi perfil</h2>
@@ -92,20 +112,18 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Nota informativa para admin y coordinador */}
       {(isAdmin || isCoordinador) && (
         <div className="info-box mt-4">
-          <strong>Acceso ampliado:</strong> podés ver todos los niños del sistema,
-          independientemente de la institución que los registró.
+          <strong>Acceso ampliado:</strong> podés ver todos los niños e instituciones del sistema,
+          independientemente de quién los registró.
           {isCoordinador && ' Como coordinador, tenés acceso de solo lectura.'}
         </div>
       )}
 
-      {/* Nota para representantes sobre lo que pueden ver */}
       {isRepresentante && institutionType && (
         <div className="info-box mt-4">
           <strong>Acceso restringido:</strong> solo ves los niños y registros vinculados
-          a tu institución ({user?.institution?.name}).
+          a tu institución ({institutionName}).
           {institutionType === 'educacion' && ' Podés gestionar registros educativos.'}
           {institutionType === 'salud' && ' Podés gestionar registros de salud.'}
         </div>

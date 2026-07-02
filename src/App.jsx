@@ -9,6 +9,8 @@ import ChildFormPage from './pages/ChildFormPage'
 import UsersListPage from './pages/UsersListPage'
 import UserFormPage from './pages/UserFormPage'
 import UserActivityPage from './pages/UserActivityPage'
+import InstitutionsListPage from './pages/InstitutionsListPage'
+import InstitutionFormPage from './pages/InstitutionFormPage'
 
 export default function App() {
   return (
@@ -84,6 +86,32 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <UserActivityPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Instituciones */}
+          <Route
+            path="/institutions"
+            element={
+              <ProtectedRoute>
+                <InstitutionsListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/institutions/new"
+            element={
+              <ProtectedRoute>
+                <InstitutionFormPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/institutions/:id"
+            element={
+              <ProtectedRoute>
+                <InstitutionFormPage />
               </ProtectedRoute>
             }
           />
