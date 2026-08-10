@@ -1,0 +1,58 @@
+.level {
+  margin-bottom: 24px;
+}
+
+.levelTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.gradeCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gradeLabel {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.gradeCount {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 26px;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.gradeAlert {
+  font-size: 12.5px;
+  color: #a9741f;
+  font-weight: 600;
+}
+
+.gradeAlertNone {
+  font-size: 12.5px;
+  color: var(--text-soft);
+}
+
+.unassigned {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.empty {
+  color: var(--text-muted);
+  font-size: 14px;
+}

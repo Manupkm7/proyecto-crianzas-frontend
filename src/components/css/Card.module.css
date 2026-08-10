@@ -1,0 +1,14 @@
+.card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.pad {
+  padding: 22px;
+}
+
+.accentTop {
+  border-top: 3px solid var(--_accent, var(--primary));
+}

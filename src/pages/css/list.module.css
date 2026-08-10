@@ -1,0 +1,94 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.count {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.nameMain {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+}
+.nameSub {
+  font-size: 12.5px;
+  color: var(--text-soft);
+}
+
+.email {
+  color: var(--edu);
+  font-weight: 500;
+}
+
+.muted {
+  color: var(--text-soft);
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.actionBtn {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--danger, #c53030);
+  background: none;
+  border: 1.5px solid currentColor;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 3px 8px;
+  opacity: 0.7;
+  line-height: 1.4;
+}
+.actionBtn:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--danger, #c53030) 8%, transparent);
+}
+.actionBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.link {
+  color: var(--primary);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.link:hover {
+  color: var(--primary-hover);
+}
+
+.regCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nameMainWrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}

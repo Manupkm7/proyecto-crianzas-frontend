@@ -1,0 +1,403 @@
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13.5px;
+  margin-bottom: 18px;
+}
+.back:hover {
+  color: var(--primary);
+}
+
+.identity {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.personText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.personName {
+  font-size: 28px;
+}
+.personMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.metaDot {
+  color: var(--text-soft);
+}
+
+.headActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.dataList {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 24px;
+}
+.dataItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dataLabel {
+  font-size: 12px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+.dataValue {
+  font-size: 15px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  margin-bottom: 14px;
+}
+
+.notes {
+  color: var(--text-muted);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.registros {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.regCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.regHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.regTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+}
+.regIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  flex-shrink: 0;
+}
+.regBody {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.sideStack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .registros {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 520px) {
+  .dataList {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── edu stack layout ────────────────────────────────────────────────────── */
+
+.eduStack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.eduRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+/* ── bimestre select ─────────────────────────────────────────────────────── */
+
+.bimestreBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.bimestreSelect {
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  outline: none;
+  flex-shrink: 0;
+}
+.bimestreSelect:focus {
+  border-color: var(--primary);
+}
+
+/* ── attendance stat ─────────────────────────────────────────────────────── */
+
+.attendanceStat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.attendanceMain {
+  font-size: 34px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+.attendanceSep {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.attendanceSub {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.attendancePeriod {
+  font-size: 11px;
+  color: var(--text-soft);
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
+.attendanceAbsences {
+  font-size: 13px;
+  color: var(--danger, #c53030);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* ── alerts ──────────────────────────────────────────────────────────────── */
+
+.alertsList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.alertItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+/* ── card title + inline action ──────────────────────────────────────────── */
+
+.cardTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+/* ── observations ────────────────────────────────────────────────────────── */
+
+.obsList {
+  display: flex;
+  flex-direction: column;
+  margin-top: 14px;
+}
+
+.obsEmpty {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.obsItem {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.obsItem:first-child {
+  padding-top: 0;
+}
+.obsItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.obsMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.obsBody {
+  font-size: 14.5px;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.obsAttachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--primary);
+  font-weight: 600;
+}
+.obsAttachment:hover {
+  text-decoration: underline;
+}
+
+/* ── observation form ────────────────────────────────────────────────────── */
+
+.obsForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--surface-2, rgba(0, 0, 0, 0.03));
+  border-radius: 10px;
+  margin: 12px 0 4px;
+}
+
+.obsTextarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  resize: vertical;
+  font-family: inherit;
+  outline: none;
+}
+.obsTextarea:focus {
+  border-color: var(--primary);
+}
+
+.obsFormRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.obsFileLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px 10px;
+  border: 1.5px dashed var(--border);
+  border-radius: 7px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.obsFileLabel:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.obsFormActions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.obsError {
+  font-size: 13px;
+  color: var(--danger, #c53030);
+  font-weight: 500;
+}
+
+@media (max-width: 700px) {
+  .eduRow {
+    grid-template-columns: 1fr;
+  }
+}
