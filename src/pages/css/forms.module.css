@@ -1,0 +1,205 @@
+.page {
+  min-height: 100vh;
+  background: var(--background);
+  padding: 30px 0 72px;
+}
+.public {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: var(--background);
+}
+.publicCard {
+  width: min(100%, 430px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(54, 44, 35, 0.12);
+  padding: 30px;
+}
+.formCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 10px 28px rgba(54, 44, 35, 0.08);
+  padding: 28px;
+}
+.center {
+  text-align: center;
+}
+.title {
+  font-size: 25px;
+  margin: 0;
+  color: var(--text);
+}
+.subtitle {
+  color: var(--text-muted);
+  margin: 8px 0 26px;
+  font-size: 14px;
+}
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary);
+  font-size: 13px;
+  text-decoration: none;
+  margin-bottom: 10px;
+}
+.back:hover {
+  text-decoration: underline;
+}
+.notice {
+  background: var(--health-soft);
+  border: 1px solid #a7e9cf;
+  color: #087f58;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+.hintLink {
+  display: block;
+  color: var(--primary);
+  font-size: 13px;
+  text-align: center;
+  text-decoration: none;
+  margin-top: 18px;
+}
+.hintLink:hover {
+  text-decoration: underline;
+}
+.credentials {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 2px 0 0;
+}
+.credentials code {
+  background: var(--surface-muted);
+  padding: 3px 5px;
+  border-radius: 5px;
+}
+.intro {
+  margin-bottom: 22px;
+}
+.intro h1 {
+  margin: 0;
+  font-size: 26px;
+}
+.intro p {
+  color: var(--text-muted);
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+.download {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 800;
+  font-size: 15px;
+}
+.downloadIcon {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.exportText {
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 14px 0;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+}
+.activityCard {
+  padding: 0;
+  overflow: hidden;
+}
+.activityTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.activityTable th {
+  text-align: left;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.activityTable td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.activityTable tr:last-child td {
+  border-bottom: 0;
+}
+.pill {
+  display: inline-flex;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+.pillGreen {
+  background: var(--health-soft);
+  color: #087f58;
+}
+.detail {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+@media (max-width: 680px) {
+  .page {
+    padding: 18px 14px 50px;
+  }
+  .public {
+    padding: 16px;
+  }
+  .publicCard,
+  .formCard {
+    padding: 22px;
+  }
+  .actions {
+    flex-wrap: wrap;
+  }
+  .actions button {
+    flex: 1;
+  }
+  .activityCard {
+    overflow: auto;
+  }
+  .activityTable {
+    min-width: 700px;
+  }
+}

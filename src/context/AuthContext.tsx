@@ -2,14 +2,48 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import { useMutation } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import api from '../api/client'
-import type { ApiErrorBody, AuthUser } from '../types'
+import type { ApiErrorBody, AuthUser, InstitutionType } from '../types'
 
 interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
   error: string | null
   login: (email: string, password: string) => Promise<AuthUser>
+  loginByDni: (dni: string, password: string) => Promise<AuthUser>
+  loginInstitution: (institutionId: string, password: string) => Promise<AuthUser>
   logout: () => Promise<void>
+}
+
+// Forma de la respuesta de POST /institution-login (ver InstitutionAuthController::login).
+interface InstitutionLoginResponse {
+  token: string
+  institution: {
+    id: string
+    name: string
+    type: InstitutionType
+    roles: string[]
+    permissions: string[]
+    password_must_change: boolean
+  }
+}
+
+// El backend devuelve { token, institution } en vez de { token, user }: se
+// normaliza a AuthUser para que el resto de la app (roles, institución
+// asociada, ProtectedRoute) funcione igual sea cual sea el tipo de login.
+function institutionToAuthUser(data: InstitutionLoginResponse): AuthUser {
+  return {
+    id: data.institution.id,
+    name: data.institution.name,
+    roles: data.institution.roles as AuthUser['roles'],
+    permissions: data.institution.permissions,
+    institution: {
+      id: data.institution.id,
+      name: data.institution.name,
+      type: data.institution.type,
+      is_active: true,
+    },
+    is_institution_actor: true,
+  }
 }
 
 // Contexto global de autenticación.
@@ -25,12 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   const loginMutation = useMutation({
-    mutationFn: async ({ email, password }: { email: string; password: string }) => {
+    // POST /login acepta email O dni (uno de los dos) — ver AuthController::login.
+    mutationFn: async (credentials: { email: string; password: string } | { dni: string; password: string }) => {
       // El backend devuelve { token, user }
-      const { data } = await api.post<{ token: string; user: AuthUser }>('/login', {
-        email,
-        password,
-      })
+      const { data } = await api.post<{ token: string; user: AuthUser }>('/login', credentials)
       return data
     },
     onSuccess: (data) => {
@@ -43,6 +75,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const message = isAxiosError<ApiErrorBody>(err)
         ? err.response?.data?.message ?? 'Error al iniciar sesión. Verificá las credenciales.'
         : 'Error al iniciar sesión. Verificá las credenciales.'
+      setError(message)
+    },
+  })
+
+  const loginInstitutionMutation = useMutation({
+    mutationFn: async ({ institutionId, password }: { institutionId: string; password: string }) => {
+      const { data } = await api.post<InstitutionLoginResponse>('/institution-login', {
+        institution_id: institutionId,
+        password,
+      })
+      return data
+    },
+    onSuccess: (data) => {
+      const user = institutionToAuthUser(data)
+      localStorage.setItem('auth_token', data.token)
+      localStorage.setItem('auth_user', JSON.stringify(user))
+      setUser(user)
+      setError(null)
+    },
+    onError: (err) => {
+      const message = isAxiosError<ApiErrorBody>(err)
+        ? err.response?.data?.message ?? 'Error al iniciar sesión. Verificá la contraseña de la institución.'
+        : 'Error al iniciar sesión. Verificá la contraseña de la institución.'
       setError(message)
     },
   })
@@ -65,13 +120,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [loginMutation],
   )
 
+  const loginByDni = useCallback(
+    async (dni: string, password: string) => {
+      const data = await loginMutation.mutateAsync({ dni, password })
+      return data.user
+    },
+    [loginMutation],
+  )
+
+  const loginInstitution = useCallback(
+    async (institutionId: string, password: string) => {
+      const data = await loginInstitutionMutation.mutateAsync({ institutionId, password })
+      return institutionToAuthUser(data)
+    },
+    [loginInstitutionMutation],
+  )
+
   const logout = useCallback(async () => {
     await logoutMutation.mutateAsync().catch(() => {})
   }, [logoutMutation])
 
   return (
     <AuthContext.Provider
-      value={{ user, loading: loginMutation.isPending, error, login, logout }}
+      value={{
+        user,
+        loading: loginMutation.isPending || loginInstitutionMutation.isPending,
+        error,
+        login,
+        loginByDni,
+        loginInstitution,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>

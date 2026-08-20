@@ -525,6 +525,25 @@ code {
   color: var(--color-muted);
 }
 
+/* ---- Login institucional ---- */
+.login-card--wide {
+  max-width: 480px;
+}
+
+.login-mode-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+.login-mode-toggle .btn {
+  flex: 1;
+  justify-content: center;
+}
+.login-mode-toggle .btn.is-active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
 /* =========================================================
    Sistema de Apoyo a la Crianza — Sistema de diseño
    CSS puro (sin Tailwind). Paleta cálida y cercana.

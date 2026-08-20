@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
+import InstitutionalLoginPage from './pages/InstitutionalLoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ChildrenListPage from './pages/ChildrenListPage'
 import ChildDetailPage from './pages/ChildDetailPage'
@@ -13,6 +14,8 @@ import InstitutionsListPage from './pages/InstitutionsListPage'
 import InstitutionFormPage from './pages/InstitutionFormPage'
 import ImportsListPage from './pages/ImportsListPage'
 import ImportReviewPage from './pages/ImportReviewPage'
+import UserImportsListPage from './pages/UserImportsListPage'
+import UserImportReviewPage from './pages/UserImportReviewPage'
 import RolesPage from './pages/RolesPage'
 
 export default function App() {
@@ -20,8 +23,9 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Pública */}
+          {/* Públicas */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/login/institucional" element={<InstitutionalLoginPage />} />
 
           {/* Protegidas — requieren sesión activa */}
           <Route
@@ -151,6 +155,24 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <ImportReviewPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Carga masiva de usuarios (admin, coordinador y responsable de institución) */}
+          <Route
+            path="/user-imports"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'coordinador', 'institucion']}>
+                <UserImportsListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user-imports/:id/review"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'coordinador', 'institucion']}>
+                <UserImportReviewPage />
               </ProtectedRoute>
             }
           />

@@ -8,6 +8,7 @@ export type InstitutionPayload = Partial<
     | 'type'
     | 'address'
     | 'phone'
+    | 'locality_id'
     | 'is_active'
     | 'offers_jardin'
     | 'offers_primario'

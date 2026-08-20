@@ -32,6 +32,7 @@ export default function UserFormPage() {
     name: '',
     email: '',
     password: '',
+    dni: '',
     role: 'representante' as Role,
     institution_id: '',
     is_active: true,
@@ -68,6 +69,7 @@ export default function UserFormPage() {
       name: fetchedUser.name ?? '',
       email: fetchedUser.email ?? '',
       password: '',
+      dni: fetchedUser.dni ?? '',
       role: fetchedUser.roles?.[0] ?? 'representante',
       institution_id: fetchedUser.institution?.id ?? '',
       is_active: fetchedUser.is_active ?? true,
@@ -100,9 +102,10 @@ export default function UserFormPage() {
         delete payload.password
       }
 
-      // No enviar institution_id si el rol no lo requiere
+      // No enviar institution_id ni dni si el rol no los requiere
       if (!roleNeedsInstitution) {
         delete payload.institution_id
+        delete payload.dni
       }
 
       if (isEdit && id) {
@@ -190,6 +193,31 @@ export default function UserFormPage() {
               )}
             </div>
           </div>
+
+          {/* DNI: solo para institución/representante — es con lo que inician sesión */}
+          {roleNeedsInstitution && (
+            <div className="form-row">
+              <div className="field">
+                <label htmlFor="dni">DNI *</label>
+                <input
+                  id="dni"
+                  type="text"
+                  inputMode="numeric"
+                  name="dni"
+                  value={form.dni}
+                  onChange={handleChange}
+                  required
+                  placeholder="8 dígitos, sin puntos ni espacios"
+                />
+                <span className="field-error" style={{ color: 'var(--color-muted)', fontWeight: 'normal' }}>
+                  Con este DNI y su contraseña puede iniciar sesión desde "Soy representante".
+                </span>
+                {fieldErrors.dni && (
+                  <span className="field-error">{fieldErrors.dni[0]}</span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Contraseña */}
           <div className="field">

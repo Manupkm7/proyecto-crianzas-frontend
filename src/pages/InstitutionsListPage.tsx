@@ -77,6 +77,19 @@ export default function InstitutionsListPage() {
       render: (inst) => TYPE_LABELS[inst.type] ?? inst.type,
     },
     {
+      key: "jurisdiction",
+      header: "Jurisdicción",
+      render: (inst) =>
+        inst.locality ? (
+          <span style={{ color: "var(--text-muted)" }}>
+            {inst.locality.name}
+            {inst.province ? ` (${inst.province.name})` : ""}
+          </span>
+        ) : (
+          <span className="badge badge-red">Sin asignar</span>
+        ),
+    },
+    {
       key: "users",
       header: "Usuarios",
       render: (inst) => (

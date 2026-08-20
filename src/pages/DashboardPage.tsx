@@ -19,6 +19,7 @@ import { EducationLevelDashboard } from "../components/EducationLevelDashboard";
 import { useChildrenQuery } from "../hooks/useChildren";
 import { useUsersQuery } from "../hooks/useUsers";
 import { useInstitutionsQuery } from "../hooks/useInstitutions";
+import { useDepartmentsQuery, useLocalitiesQuery, useProvincesQuery } from "../hooks/useGeo";
 import { downloadDatabaseExport } from "../api/databaseExport";
 
 interface Stat {
@@ -105,13 +106,35 @@ export default function DashboardPage() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
+  // Jurisdicción opcional para acotar la exportación — vacío = todo el sistema.
+  const [exportProvinceId, setExportProvinceId] = useState("");
+  const [exportDepartmentId, setExportDepartmentId] = useState("");
+  const [exportLocalityId, setExportLocalityId] = useState("");
+  const { data: exportProvinces = [] } = useProvincesQuery();
+  const { data: exportDepartments = [] } = useDepartmentsQuery(
+    exportProvinceId || undefined,
+  );
+  const { data: exportLocalities = [] } = useLocalitiesQuery(
+    exportDepartmentId || undefined,
+  );
+
   // Descarga autenticada del ZIP: axios trae el archivo como blob (no navegación
   // por <a href>, porque el token va en el header Authorization, no en cookies).
   async function handleDatabaseExport() {
     setExportError(null);
     setExporting(true);
     try {
-      const response = await downloadDatabaseExport();
+      const response = await downloadDatabaseExport({
+        // Solo se manda el nivel más específico elegido — el backend resuelve
+        // las instituciones a partir de ese único filtro (ver DatabaseExportController).
+        ...(exportLocalityId
+          ? { locality_id: exportLocalityId }
+          : exportDepartmentId
+          ? { department_id: exportDepartmentId }
+          : exportProvinceId
+          ? { province_id: exportProvinceId }
+          : {}),
+      });
       const disposition = response.headers["content-disposition"] as
         | string
         | undefined;
@@ -317,6 +340,64 @@ export default function DashboardPage() {
                     instituciones, niños, registros, usuarios, etc.) más los
                     PDF adjuntos, menos el historial de auditoría.
                   </p>
+
+                  <p
+                    className={styles.actionText}
+                    style={{ marginBottom: 4, fontSize: "0.8rem" }}
+                  >
+                    Jurisdicción (opcional — vacío exporta todo el sistema)
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <select
+                      aria-label="Provincia"
+                      value={exportProvinceId}
+                      onChange={(e) => {
+                        setExportProvinceId(e.target.value);
+                        setExportDepartmentId("");
+                        setExportLocalityId("");
+                      }}
+                      style={{ fontSize: "0.85rem", padding: "4px 6px" }}
+                    >
+                      <option value="">Todas las provincias</option>
+                      {exportProvinces.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label="Departamento"
+                      value={exportDepartmentId}
+                      onChange={(e) => {
+                        setExportDepartmentId(e.target.value);
+                        setExportLocalityId("");
+                      }}
+                      disabled={!exportProvinceId}
+                      style={{ fontSize: "0.85rem", padding: "4px 6px" }}
+                    >
+                      <option value="">Todos los departamentos</option>
+                      {exportDepartments.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label="Localidad"
+                      value={exportLocalityId}
+                      onChange={(e) => setExportLocalityId(e.target.value)}
+                      disabled={!exportDepartmentId}
+                      style={{ fontSize: "0.85rem", padding: "4px 6px" }}
+                    >
+                      <option value="">Todas las localidades</option>
+                      {exportLocalities.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   {exportError && (
                     <div className="alert alert-error" style={{ marginTop: 8 }}>
                       {exportError}

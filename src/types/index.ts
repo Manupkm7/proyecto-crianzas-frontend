@@ -9,6 +9,11 @@ export interface Institution {
   type_label?: string
   address?: string | null
   phone?: string | null
+  /** Jurisdicción — se expone aplanada (no anidada), ver InstitutionResource. */
+  locality_id?: string | null
+  locality?: Locality | null
+  department?: Department | null
+  province?: Province | null
   is_active: boolean
   users_count?: number
   /** Configuración de niveles educativos — solo relevante cuando type === 'educacion'. */
@@ -24,7 +29,10 @@ export type EducationLevel = 'jardin' | 'primario' | 'secundario'
 export interface AuthUser {
   id: string
   name: string
-  email: string
+  /** Ausente cuando el actor autenticado es una Institution (login institucional). */
+  email?: string
+  /** DNI de la persona (8 dígitos) — con el que puede iniciar sesión como alternativa al email. */
+  dni?: string | null
   roles: Role[]
   institution?: (Institution & { type_label?: string }) | null
   is_active?: boolean
@@ -32,6 +40,37 @@ export interface AuthUser {
   permissions?: string[]
   /** Permisos asignados explícitamente al usuario (sin los heredados del rol). Solo en users.show / me. */
   direct_permissions?: string[]
+  /** true si el actor autenticado es la propia Institution (login institucional), no un User. */
+  is_institution_actor?: boolean
+}
+
+// ─── Login institucional (provincia → departamento → localidad → sector → institución) ──
+
+export interface Province {
+  id: string
+  name: string
+}
+
+export interface Department {
+  id: string
+  name: string
+}
+
+export interface Locality {
+  id: string
+  name: string
+}
+
+export interface Sector {
+  value: InstitutionType
+  label: string
+}
+
+/** Fila del desplegable público de instituciones (id/name/type solamente, ver InstitutionDirectoryResource). */
+export interface InstitutionDirectoryEntry {
+  id: string
+  name: string
+  type: InstitutionType
 }
 
 export interface EducationRecord {
@@ -259,6 +298,52 @@ export interface ImportRow {
   file_line_number?: number | null
   matched_row?: ImportRowMatch | null
   child?: Child | null
+  resolved_by?: { user_id: string; resolved_at: string } | null
+  error_message?: string | null
+}
+
+// ─── Carga masiva de usuarios (institución / representante) ──────────────────
+
+export type UserImportBatchStatus = 'pending' | 'processing' | 'completed' | 'failed'
+export type UserImportRowStatus = 'pending' | 'created' | 'needs_review' | 'skipped' | 'error'
+export type UserImportReviewReason =
+  | 'duplicate_dni_existing'
+  | 'duplicate_dni_in_file'
+  | 'invalid_dni'
+  | 'missing_name'
+  | 'invalid_role'
+  | 'institution_head_conflict'
+
+export interface UserImportBatch {
+  id: string
+  status: UserImportBatchStatus
+  original_filename: string
+  rows: {
+    total: number
+    created: number
+    needs_review: number
+    skipped: number
+    errors: number
+  }
+  institution?: { id: string; name: string } | null
+  uploaded_by?: { id: string; name: string } | null
+  error_message?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  created_at: string
+}
+
+export interface UserImportRow {
+  id: string
+  status: UserImportRowStatus
+  first_name?: string | null
+  last_name?: string | null
+  dni?: string | null
+  role?: 'institucion' | 'representante' | null
+  review_reason?: UserImportReviewReason | null
+  notes?: string | null
+  file_line_number?: number | null
+  created_user?: { id: string; name: string; email: string } | null
   resolved_by?: { user_id: string; resolved_at: string } | null
   error_message?: string | null
 }

@@ -2,8 +2,17 @@ import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useImportsQuery, useUploadImportMutation } from '../hooks/useImports'
 import { useInstitutionOptions } from '../hooks/useInstitutionOptions'
+import { downloadImportTemplate } from '../api/imports'
 import { IconUpload } from '../components/icons'
 import type { ImportBatch, ImportBatchStatus } from '../types'
+
+type TemplateFormat = 'xlsx' | 'csv' | 'txt'
+
+const TEMPLATE_FORMAT_LABEL: Record<TemplateFormat, string> = {
+  xlsx: 'Excel',
+  csv: 'CSV',
+  txt: 'TXT',
+}
 
 const STATUS_LABEL: Record<ImportBatchStatus, string> = {
   pending: 'Pendiente',
@@ -172,9 +181,38 @@ function UploadPanel() {
   const { mutateAsync: upload, isPending, isSuccess, error: uploadError } = useUploadImportMutation()
   const educationInstitutions = useInstitutionOptions('educacion', true)
 
+  const [downloadingTemplate, setDownloadingTemplate] = useState<TemplateFormat | null>(null)
+  const [templateError, setTemplateError] = useState<string | null>(null)
+
   const errorMsg = uploadError
     ? ((uploadError as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al subir el archivo.')
     : null
+
+  // Descarga autenticada: el token va en el header Authorization, no en
+  // cookies, así que no se puede navegar directo con un <a href>.
+  async function handleDownloadTemplate(format: TemplateFormat) {
+    setTemplateError(null)
+    setDownloadingTemplate(format)
+    try {
+      const response = await downloadImportTemplate(source, format)
+      const disposition = response.headers['content-disposition'] as string | undefined
+      const match = disposition?.match(/filename="?([^"]+)"?/)
+      const filename = match?.[1] ?? `plantilla_${source}.${format}`
+
+      const url = URL.createObjectURL(response.data as Blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      setTemplateError('No se pudo descargar la plantilla. Intentá de nuevo.')
+    } finally {
+      setDownloadingTemplate(null)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -269,6 +307,29 @@ function UploadPanel() {
           </div>
         )}
 
+        {/* Plantilla descargable */}
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: '0.875rem' }}>
+            ¿No sabés qué columnas van? Descargá la plantilla
+          </label>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {(['xlsx', 'csv', 'txt'] as const).map((format) => (
+              <button
+                key={format}
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={downloadingTemplate !== null}
+                onClick={() => handleDownloadTemplate(format)}
+              >
+                {downloadingTemplate === format ? 'Descargando…' : `Plantilla ${TEMPLATE_FORMAT_LABEL[format]}`}
+              </button>
+            ))}
+          </div>
+          {templateError && (
+            <p style={{ margin: '6px 0 0', color: 'var(--color-danger)', fontSize: '0.8rem' }}>{templateError}</p>
+          )}
+        </div>
+
         {/* Zona de drop */}
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
@@ -289,7 +350,7 @@ function UploadPanel() {
           <input
             ref={fileRef}
             type="file"
-            accept=".csv,.xlsx,.xls"
+            accept=".csv,.txt,.xlsx,.xls"
             style={{ display: 'none' }}
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
@@ -304,7 +365,7 @@ function UploadPanel() {
                 Arrastrá el archivo aquí o hacé clic para seleccionar
               </p>
               <p style={{ margin: '4px 0 0', color: 'var(--color-muted)', fontSize: '0.8rem' }}>
-                CSV o Excel (.xlsx, .xls) — máximo 10 MB
+                CSV, TXT o Excel (.xlsx, .xls) — máximo 10 MB
               </p>
             </>
           )}

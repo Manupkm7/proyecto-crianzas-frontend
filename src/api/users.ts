@@ -5,6 +5,7 @@ export interface UserPayload {
   name?: string
   email?: string
   password?: string
+  dni?: string | null
   role?: string
   institution_id?: string
   is_active?: boolean

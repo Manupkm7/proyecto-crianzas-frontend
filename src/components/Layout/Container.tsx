@@ -65,6 +65,9 @@ export function AppContainer({ children }: { children: ReactNode }) {
     ...(isAdmin
       ? [{ href: '/imports', match: '/imports', label: 'Importaciones', icon: IconUpload }]
       : []),
+    ...(isAdmin || isCoordinador || isInstitucion
+      ? [{ href: '/user-imports', match: '/user-imports', label: 'Carga de usuarios', icon: IconUpload }]
+      : []),
   ]
 
   const isActive = (match: string) =>
