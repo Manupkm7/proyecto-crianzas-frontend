@@ -43,6 +43,7 @@ function institutionToAuthUser(data: InstitutionLoginResponse): AuthUser {
       is_active: true,
     },
     is_institution_actor: true,
+    password_must_change: data.institution.password_must_change,
   }
 }
 

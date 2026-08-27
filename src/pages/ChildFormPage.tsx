@@ -10,7 +10,7 @@ import {
 import { useInstitutionsQuery } from '../hooks/useInstitutions'
 import { useRole } from '../hooks/useRole'
 import { queryKeys } from '../api/queryKeys'
-import type { ApiErrorBody } from '../types'
+import type { ApiErrorBody, Child } from '../types'
 
 type ChildForm = {
   first_name: string
@@ -174,6 +174,7 @@ export default function ChildFormPage() {
   const [deathForm, setDeathForm] = useState<DeathForm>(EMPTY_DEATH)
   const [includeDeath, setIncludeDeath] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [existingChild, setExistingChild] = useState<Child | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [saving, setSaving] = useState(false)
@@ -250,6 +251,7 @@ export default function ChildFormPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
+    setExistingChild(null)
     setSuccess(null)
     setFieldErrors({})
     setSaving(true)
@@ -300,12 +302,11 @@ export default function ChildFormPage() {
     } catch (err) {
       if (isAxiosError<ApiErrorBody>(err)) {
         if (err.response?.status === 409) {
-          const existing = err.response.data?.child
-          setError(
-            existing
-              ? `Ya existe un niño con ese DNI: ${existing.first_name} ${existing.last_name}.`
-              : (err.response.data?.message ?? 'Conflicto al guardar los datos.'),
-          )
+          const existing = err.response.data?.child ?? null
+          setExistingChild(existing)
+          if (!existing) {
+            setError(err.response.data?.message ?? 'Conflicto al guardar los datos.')
+          }
         } else if (err.response?.status === 422) {
           setFieldErrors(err.response.data?.errors ?? {})
           setError('Hay errores en el formulario. Corregílos y volvé a intentar.')
@@ -346,6 +347,33 @@ export default function ChildFormPage() {
 
       <div className="form-card" style={{ maxWidth: 760 }}>
         {error && <div className="alert alert-error">{error}</div>}
+        {existingChild && (
+          <div
+            className="alert alert-error"
+            style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}
+          >
+            <span>
+              Ya existe un niño registrado con ese DNI:{' '}
+              <strong>
+                {existingChild.first_name} {existingChild.last_name}
+              </strong>
+              .
+            </span>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => navigate(`/children/${existingChild.id}`)}
+              >
+                Abrir perfil del niño
+              </button>
+            ) : (
+              <span style={{ fontSize: '0.85rem' }}>
+                Pedile al administrador que vincule este niño a tu institución.
+              </span>
+            )}
+          </div>
+        )}
         {success && <div className="alert alert-success">{success}</div>}
 
         <form onSubmit={handleSubmit} className="form">

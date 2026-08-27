@@ -1,13 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  bulkResolveNoMatch,
   getImport,
   getImportRows,
   getImports,
+  getImportSiblings,
+  previewImport,
+  rematchImportBatch,
   resolveImportRow,
-  uploadImport,
+  submitImportSheets,
 } from '../api/imports'
 import { queryKeys } from '../api/queryKeys'
-import type { ImportBatch, ImportRow } from '../types'
+import type { ImportBatch, ImportRow, ImportSheetAssignment } from '../types'
 
 export function useImportsQuery(page = 1) {
   return useQuery({
@@ -60,10 +64,19 @@ export function useImportRowsQuery(
   })
 }
 
-export function useUploadImportMutation() {
+/** Paso 1: sube el archivo y devuelve sus hojas detectadas para armar la asignación por hoja. */
+export function usePreviewImportMutation() {
+  return useMutation({
+    mutationFn: (formData: FormData) => previewImport(formData),
+  })
+}
+
+/** Paso 2: crea un batch por cada hoja asignada (fuente + institución). */
+export function useSubmitImportSheetsMutation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (formData: FormData) => uploadImport(formData),
+    mutationFn: (data: { storage_path: string; original_filename: string; sheets: ImportSheetAssignment[] }) =>
+      submitImportSheets(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.imports.all })
     },
@@ -77,11 +90,49 @@ export function useResolveRowMutation(batchId: string) {
       rowId,
       action,
       childId,
+      dataSource,
     }: {
       rowId: string
       action: 'confirm' | 'skip'
       childId?: string
-    }) => resolveImportRow(batchId, rowId, { action, child_id: childId }),
+      dataSource?: 'row' | 'matched_row'
+    }) => resolveImportRow(batchId, rowId, { action, child_id: childId, data_source: dataSource }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.imports.detail(batchId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.imports.rows(batchId) })
+    },
+  })
+}
+
+/** Crea un niño nuevo por cada fila 'no_match' del lote de una sola vez. */
+export function useBulkResolveNoMatchMutation(batchId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => bulkResolveNoMatch(batchId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.imports.detail(batchId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.imports.rows(batchId) })
+    },
+  })
+}
+
+/** Otras hojas del mismo archivo subido, para el selector de comparación manual. */
+export function useImportSiblingsQuery(batchId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.imports.siblings(batchId ?? ''),
+    queryFn: async () => {
+      const { data } = await getImportSiblings(batchId as string)
+      return data.data as ImportBatch[]
+    },
+    enabled: Boolean(batchId),
+  })
+}
+
+/** Recompara las filas sin resolver del batch contra una hoja elegida a mano. */
+export function useRematchBatchMutation(batchId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (againstBatchId: string) => rematchImportBatch(batchId, againstBatchId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.imports.detail(batchId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.imports.rows(batchId) })

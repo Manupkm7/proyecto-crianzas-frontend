@@ -5,7 +5,10 @@ import {
   useInstitutionQuery,
   useCreateInstitutionMutation,
   useUpdateInstitutionMutation,
+  useResetInstitutionPasswordMutation,
 } from "../hooks/useInstitutions";
+import { PasswordRevealModal } from "../components/PasswordRevealModal";
+import { InstitutionChangePasswordCard } from "../components/InstitutionChangePasswordCard";
 import {
   useDepartmentsQuery,
   useLocalitiesQuery,
@@ -52,6 +55,12 @@ export default function InstitutionFormPage() {
   const [fieldErrors, setFieldErrors] = useState<
     Record<string, string[] | null>
   >({});
+  // Contraseña institucional revelada de un solo uso. `context` decide qué pasa
+  // al cerrar el modal: en 'create' navegamos a la lista; en 'reset' nos quedamos.
+  const [revealedPassword, setRevealedPassword] = useState<{
+    password: string;
+    context: "create" | "reset";
+  } | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -94,6 +103,7 @@ export default function InstitutionFormPage() {
   } = useInstitutionQuery(isEdit ? id : undefined);
   const createInstitutionMutation = useCreateInstitutionMutation();
   const updateInstitutionMutation = useUpdateInstitutionMutation(id ?? "");
+  const resetPasswordMutation = useResetInstitutionPasswordMutation();
   const loading = isEdit && loadingInstitution;
   const saving =
     createInstitutionMutation.isPending || updateInstitutionMutation.isPending;
@@ -148,8 +158,13 @@ export default function InstitutionFormPage() {
         await updateInstitutionMutation.mutateAsync(payload);
         setSuccess("Institución actualizada correctamente.");
       } else {
-        await createInstitutionMutation.mutateAsync(payload);
-        navigate("/institutions");
+        const { data } = await createInstitutionMutation.mutateAsync(payload);
+        // No navegamos todavía: el backend devuelve la contraseña institucional
+        // inicial una sola vez y hay que mostrarla antes de salir de esta pantalla.
+        setRevealedPassword({
+          password: data.initial_password,
+          context: "create",
+        });
       }
     } catch (err) {
       if (isAxiosError<ApiErrorBody>(err) && err.response?.status === 422) {
@@ -174,6 +189,35 @@ export default function InstitutionFormPage() {
     }
     navigate("/institutions");
   };
+
+  async function handleResetPassword() {
+    if (!id) return;
+    if (
+      !confirm(
+        `¿Resetear la contraseña de "${form.name}"?\n` +
+          "La contraseña actual dejará de funcionar de inmediato y se cerrarán " +
+          "las sesiones activas de la institución. Se generará una nueva que verás una sola vez.",
+      )
+    )
+      return;
+
+    setError(null);
+    try {
+      const { data } = await resetPasswordMutation.mutateAsync(id);
+      setRevealedPassword({ password: data.initial_password, context: "reset" });
+    } catch (err) {
+      const message = isAxiosError<ApiErrorBody>(err)
+        ? err.response?.data?.message
+        : undefined;
+      setError(message ?? "No se pudo resetear la contraseña institucional.");
+    }
+  }
+
+  function handleCloseReveal() {
+    const context = revealedPassword?.context;
+    setRevealedPassword(null);
+    if (context === "create") navigate("/institutions");
+  }
 
   if (loading) {
     return <p className="text-muted">Cargando…</p>;
@@ -454,7 +498,67 @@ export default function InstitutionFormPage() {
             </div>
           </form>
         </section>
+
+        {isEdit && isAdmin && (
+          <section className={styles.formCard} style={{ marginTop: "20px" }}>
+            <h2 style={{ margin: "0 0 6px", fontSize: "18px" }}>
+              Contraseña institucional
+            </h2>
+            <p className="text-muted" style={{ margin: "0 0 16px", fontSize: "14px" }}>
+              La institución usa esta contraseña para el ingreso institucional
+              (provincia → departamento → localidad → sector → institución). Si se
+              perdió o nunca se anotó, generá una nueva. Podés verla una sola vez.
+            </p>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={handleResetPassword}
+              disabled={resetPasswordMutation.isPending}
+            >
+              {resetPasswordMutation.isPending
+                ? "Generando…"
+                : "Resetear contraseña institucional"}
+            </Button>
+          </section>
+        )}
+
+        {isEdit && isInstitucion && (
+          <InstitutionChangePasswordCard
+            mustChange={authUser?.password_must_change ?? false}
+          />
+        )}
       </div>
+
+      {revealedPassword && (
+        <PasswordRevealModal
+          title={
+            revealedPassword.context === "create"
+              ? "Institución creada"
+              : "Contraseña reseteada"
+          }
+          description={
+            revealedPassword.context === "create" ? (
+              <>
+                Esta es la contraseña de ingreso institucional de{" "}
+                <strong>{form.name}</strong>. Entregala a la persona responsable
+                de la institución.
+              </>
+            ) : (
+              <>
+                Nueva contraseña de ingreso institucional de{" "}
+                <strong>{form.name}</strong>. La anterior ya no funciona.
+              </>
+            )
+          }
+          password={revealedPassword.password}
+          closeLabel={
+            revealedPassword.context === "create"
+              ? "Ir a instituciones"
+              : "Entendido"
+          }
+          onClose={handleCloseReveal}
+        />
+      )}
     </>
   );
 }

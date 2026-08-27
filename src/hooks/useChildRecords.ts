@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
+  deleteEducationRecord,
+  deleteHealthRecord,
   saveBirthRecord,
   saveDeathRecord,
   saveEducationRecord,
@@ -38,3 +40,20 @@ export const useSaveBirthRecordMutation = (childId: string) =>
 
 export const useSaveDeathRecordMutation = (childId: string) =>
   useSaveRecordMutation(childId, saveDeathRecord)
+
+// Desvincular institución de un niño (solo admin) — mismo criterio de invalidación.
+function useDeleteRecordMutation(childId: string, remove: (childId: string) => Promise<unknown>) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => remove(childId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.children.detail(childId) })
+    },
+  })
+}
+
+export const useDeleteEducationRecordMutation = (childId: string) =>
+  useDeleteRecordMutation(childId, deleteEducationRecord)
+
+export const useDeleteHealthRecordMutation = (childId: string) =>
+  useDeleteRecordMutation(childId, deleteHealthRecord)

@@ -42,6 +42,8 @@ export interface AuthUser {
   direct_permissions?: string[]
   /** true si el actor autenticado es la propia Institution (login institucional), no un User. */
   is_institution_actor?: boolean
+  /** Solo para actores Institution: el admin reseteó la clave y todavía usa la aleatoria. */
+  password_must_change?: boolean
 }
 
 // ─── Login institucional (provincia → departamento → localidad → sector → institución) ──
@@ -102,6 +104,27 @@ export interface EducationObservation {
   created_at: string
 }
 
+/**
+ * Reporte bimestral del registro educativo. El registro (EducationRecord) es la
+ * foto vigente; estos son el histórico, uno por año + bimestre.
+ */
+export interface EducationPeriodReport {
+  id: string
+  year: number
+  bimester: number
+  level?: EducationLevel | null
+  level_label?: string | null
+  grade?: number | null
+  grade_label?: string | null
+  is_enrolled: boolean
+  absences_count?: number | null
+  present_days?: number | null
+  total_days?: number | null
+  summary?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
 export interface EducationDashboardGrade {
   grade: number
   label: string
@@ -125,12 +148,30 @@ export interface EducationDashboardSummary {
 export interface HealthRecord {
   id?: string
   health_center_name: string
-  healthy_checkup_current: boolean
-  vaccines_current: boolean
+  healthy_checkup_current: boolean | null
+  vaccines_current: boolean | null
   last_checkup_date?: string | null
   observations?: string | null
   health_profile?: string | null
   institution?: { id: string; name: string } | null
+}
+
+/**
+ * Reporte bimestral del registro de salud. El registro (HealthRecord) es la
+ * foto vigente; estos son el histórico, uno por año + bimestre.
+ */
+export interface HealthPeriodReport {
+  id: string
+  year: number
+  bimester: number
+  healthy_checkup_current?: boolean | null
+  vaccines_current?: boolean | null
+  last_checkup_date?: string | null
+  weight_kg?: string | number | null
+  height_cm?: string | number | null
+  summary?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
 /** Una entrada de la bitácora de observaciones de un registro de salud. */
@@ -180,6 +221,43 @@ export interface DeathRecord {
   institution?: { id: string; name: string } | null
 }
 
+export type ChildAlertType =
+  | 'no_escolarizado'
+  | 'inasistencias_elevadas'
+  | 'control_atrasado'
+  | 'vacunas_atrasadas'
+
+/** Datos de una gestión de alerta ("en seguimiento"). */
+export interface ChildAlertManagement {
+  note: string
+  by?: string | null
+  acknowledged_at?: string
+  expires_at?: string
+}
+
+export interface ChildAlertHistoryEntry extends ChildAlertManagement {
+  active: boolean
+}
+
+/**
+ * Alerta del SAT calculada por el backend (ver ChildAlertEvaluator). Salta si la
+ * foto vigente O el último bimestre informado marcan el problema.
+ */
+export interface ChildAlert {
+  type: ChildAlertType
+  sector: 'educacion' | 'salud'
+  label: string
+  /** Dónde se detecta ahora mismo: 'record' (foto vigente) y/o 'period' (último bimestre). */
+  sources: ('record' | 'period')[]
+  /** Período "AAAA-B" del último bimestre, si es una de las fuentes. */
+  period?: string | null
+  status: 'pending' | 'managed'
+  /** Gestión vigente, si status === 'managed'. */
+  management?: ChildAlertManagement | null
+  /** Historial de gestiones de este (niño, tipo), de la más reciente a la más vieja. */
+  history?: ChildAlertHistoryEntry[]
+}
+
 export interface Child {
   id: string
   first_name: string
@@ -192,10 +270,11 @@ export interface Child {
   health_record?: HealthRecord | null
   birth_record?: BirthRecord | null
   death_record?: DeathRecord | null
-  /** Alertas calculadas por el backend (inasistencias, controles/vacunas atrasados, etc.) */
-  alerts?: string[]
+  /** Alertas del SAT calculadas por el backend, cada una con su estado de gestión. */
+  alerts?: ChildAlert[]
+  /** true si hay al menos una alerta PENDIENTE (las gestionadas no cuentan). */
   has_alert?: boolean
-  /** Solo en el detalle: hay alerta en el otro sector, sin revelar el detalle (ver ChildController::show). */
+  /** Solo en el detalle: hay alerta pendiente en el otro sector, sin revelar el detalle (ver ChildController::show). */
   other_sector_alert?: boolean
 }
 
@@ -242,7 +321,7 @@ export interface ApiErrorBody {
 
 // ─── Importaciones masivas ────────────────────────────────────────────────────
 
-export type ImportSource = 'civil_registry' | 'education'
+export type ImportSource = 'civil_registry' | 'education' | 'health'
 export type ImportBatchStatus = 'pending' | 'processing' | 'completed' | 'failed'
 export type ImportRowStatus =
   | 'pending'
@@ -259,11 +338,14 @@ export interface ImportBatch {
   source_label: string
   status: ImportBatchStatus
   original_filename: string
+  sheet_name?: string | null
   rows: {
     total: number
     matched: number
     partial: number
     no_match: number
+    resolved: number
+    skipped: number
     errors: number
     pending_review: number
   }
@@ -274,13 +356,41 @@ export interface ImportBatch {
   created_at: string
 }
 
+export interface ImportSheetPreview {
+  sheet_name: string | null
+}
+
+export interface ImportPreviewResponse {
+  storage_path: string
+  original_filename: string
+  sheets: ImportSheetPreview[]
+}
+
+export interface ImportSheetAssignment {
+  sheet_name: string | null
+  source: ImportSource
+  institution_id?: string | null
+}
+
 export interface ImportRowMatch {
   id: string
   first_name?: string | null
   last_name?: string | null
+  name_fallback?: string | null
   birth_date?: string | null
+  dni?: string | null
   school_name?: string | null
+  mother_name?: string | null
+  father_name?: string | null
   match_confidence?: number | null
+}
+
+export interface SuggestedChild {
+  id: string
+  first_name?: string | null
+  last_name?: string | null
+  birth_date?: string | null
+  dni?: string | null
 }
 
 export interface ImportRow {
@@ -290,13 +400,28 @@ export interface ImportRow {
   source_label?: string
   first_name?: string | null
   last_name?: string | null
+  name_fallback?: string | null
   birth_date?: string | null
+  dni?: string | null
+  mother_name?: string | null
+  mother_dni?: string | null
+  father_name?: string | null
+  father_dni?: string | null
+  address?: string | null
   school_name?: string | null
+  grade_or_year?: string | null
   birth_establishment?: string | null
+  health_center_name?: string | null
+  healthy_checkup_current?: boolean | null
+  vaccines_current?: boolean | null
+  last_checkup_date?: string | null
+  observations?: string | null
+  raw_columns?: Record<string, string | number | null>
   match_confidence?: number | null
   match_notes?: string | null
   file_line_number?: number | null
   matched_row?: ImportRowMatch | null
+  suggested_child?: SuggestedChild | null
   child?: Child | null
   resolved_by?: { user_id: string; resolved_at: string } | null
   error_message?: string | null

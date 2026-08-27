@@ -70,6 +70,7 @@
 .ghost {
   background-color: transparent;
   color: var(--text-muted);
+  border-color: var(--border-strong);
 }
 .ghost:hover:not(:disabled) {
   background-color: var(--surface-muted);

@@ -100,9 +100,10 @@ export function ChildrenAlertsTable({ levelInstitution }: ChildrenAlertsTablePro
       render: (c) =>
         c.alerts && c.alerts.length > 0 ? (
           <div className={styles.alertsCell}>
-            {c.alerts.map((alert) => (
-              <Badge key={alert} tone="amber">
-                {alert}
+            {c.alerts.map((a) => (
+              <Badge key={a.type} tone={a.status === 'managed' ? 'neutral' : 'amber'}>
+                {a.label}
+                {a.status === 'managed' ? ' · en seguimiento' : ''}
               </Badge>
             ))}
           </div>

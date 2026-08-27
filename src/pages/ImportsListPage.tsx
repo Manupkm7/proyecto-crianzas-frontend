@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useImportsQuery, useUploadImportMutation } from '../hooks/useImports'
+import { usePreviewImportMutation, useImportsQuery, useSubmitImportSheetsMutation } from '../hooks/useImports'
 import { useInstitutionOptions } from '../hooks/useInstitutionOptions'
 import { downloadImportTemplate } from '../api/imports'
 import { IconUpload } from '../components/icons'
-import type { ImportBatch, ImportBatchStatus } from '../types'
+import type { ImportBatch, ImportBatchStatus, ImportSheetAssignment, ImportSource } from '../types'
 
 type TemplateFormat = 'xlsx' | 'csv' | 'txt'
 
@@ -26,6 +26,12 @@ const STATUS_CLASS: Record<ImportBatchStatus, string> = {
   processing: 'badge badge-blue',
   completed: 'badge badge-green',
   failed: 'badge badge-red',
+}
+
+const SOURCE_BADGE_CLASS: Record<ImportSource, string> = {
+  civil_registry: 'badge-blue',
+  education: 'badge-green',
+  health: 'badge-gray',
 }
 
 function formatDate(iso: string) {
@@ -116,12 +122,17 @@ function BatchRow({ batch }: { batch: ImportBatch }) {
   return (
     <tr>
       <td>
-        <span className={`badge ${batch.source === 'civil_registry' ? 'badge-blue' : 'badge-green'}`}>
+        <span className={`badge ${SOURCE_BADGE_CLASS[batch.source]}`}>
           {batch.source_label}
         </span>
       </td>
       <td style={{ fontSize: '0.875rem' }}>
         {batch.original_filename}
+        {batch.sheet_name && (
+          <span className="text-muted" style={{ display: 'block', fontSize: '0.8rem' }}>
+            Hoja: {batch.sheet_name}
+          </span>
+        )}
         {batch.institution && (
           <span className="text-muted" style={{ display: 'block', fontSize: '0.8rem' }}>
             {batch.institution.name}
@@ -172,70 +183,69 @@ function BatchRow({ batch }: { batch: ImportBatch }) {
 
 function UploadPanel() {
   const [open, setOpen] = useState(false)
-  const [source, setSource] = useState<'civil_registry' | 'education'>('civil_registry')
-  const [institutionId, setInstitutionId] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [storagePath, setStoragePath] = useState<string | null>(null)
+  const [originalFilename, setOriginalFilename] = useState<string | null>(null)
+  const [assignments, setAssignments] = useState<ImportSheetAssignment[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const { mutateAsync: upload, isPending, isSuccess, error: uploadError } = useUploadImportMutation()
-  const educationInstitutions = useInstitutionOptions('educacion', true)
+  const { mutateAsync: preview, isPending: isPreviewing, error: previewError, reset: resetPreview } = usePreviewImportMutation()
+  const { mutateAsync: submitSheets, isPending: isSubmitting, isSuccess, error: submitError, reset: resetSubmit } = useSubmitImportSheetsMutation()
 
-  const [downloadingTemplate, setDownloadingTemplate] = useState<TemplateFormat | null>(null)
-  const [templateError, setTemplateError] = useState<string | null>(null)
-
-  const errorMsg = uploadError
-    ? ((uploadError as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al subir el archivo.')
+  const previewErrorMsg = previewError
+    ? ((previewError as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'No se pudo leer el archivo.')
+    : null
+  const submitErrorMsg = submitError
+    ? ((submitError as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Error al procesar el archivo.')
     : null
 
-  // Descarga autenticada: el token va en el header Authorization, no en
-  // cookies, así que no se puede navegar directo con un <a href>.
-  async function handleDownloadTemplate(format: TemplateFormat) {
-    setTemplateError(null)
-    setDownloadingTemplate(format)
-    try {
-      const response = await downloadImportTemplate(source, format)
-      const disposition = response.headers['content-disposition'] as string | undefined
-      const match = disposition?.match(/filename="?([^"]+)"?/)
-      const filename = match?.[1] ?? `plantilla_${source}.${format}`
-
-      const url = URL.createObjectURL(response.data as Blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
-    } catch {
-      setTemplateError('No se pudo descargar la plantilla. Intentá de nuevo.')
-    } finally {
-      setDownloadingTemplate(null)
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!file) return
+  async function handleFile(selected: File) {
+    resetSubmit()
+    setFile(selected)
+    setStoragePath(null)
+    setAssignments([])
 
     const fd = new FormData()
-    fd.append('file', file)
-    fd.append('source', source)
-    if (source === 'education' && institutionId) {
-      fd.append('institution_id', institutionId)
-    }
-
-    await upload(fd)
-    setFile(null)
-    // No cerramos el panel: el mensaje de éxito le da feedback al usuario
+    fd.append('file', selected)
+    const { data } = await preview(fd)
+    setStoragePath(data.storage_path)
+    setOriginalFilename(data.original_filename)
+    setAssignments(data.sheets.map((s) => ({ sheet_name: s.sheet_name, source: 'civil_registry', institution_id: undefined })))
   }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setDragOver(false)
     const dropped = e.dataTransfer.files[0]
-    if (dropped) setFile(dropped)
+    if (dropped) handleFile(dropped)
   }
+
+  function updateAssignment(index: number, patch: Partial<ImportSheetAssignment>) {
+    setAssignments((prev) => prev.map((a, i) => (i === index ? { ...a, ...patch } : a)))
+  }
+
+  function resetAll() {
+    setFile(null)
+    setStoragePath(null)
+    setOriginalFilename(null)
+    setAssignments([])
+    resetPreview()
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!storagePath || !originalFilename) return
+
+    await submitSheets({ storage_path: storagePath, original_filename: originalFilename, sheets: assignments })
+    resetAll()
+  }
+
+  const canSubmit =
+    storagePath !== null &&
+    assignments.length > 0 &&
+    assignments.every((a) => !INSTITUTION_TYPE_BY_SOURCE[a.source] || !!a.institution_id)
 
   if (!open) {
     return (
@@ -263,73 +273,6 @@ function UploadPanel() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* Fuente */}
-        <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: '0.875rem' }}>
-            Fuente del archivo
-          </label>
-          <div style={{ display: 'flex', gap: '1.5rem' }}>
-            {(['civil_registry', 'education'] as const).map((s) => (
-              <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.875rem' }}>
-                <input
-                  type="radio"
-                  name="source"
-                  value={s}
-                  checked={source === s}
-                  onChange={() => { setSource(s); setInstitutionId('') }}
-                />
-                {s === 'civil_registry' ? 'Registro Civil' : 'Educación'}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Institución (solo educación) */}
-        {source === 'education' && (
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: '0.875rem' }}>
-              Institución educativa <span style={{ color: 'var(--color-danger)' }}>*</span>
-            </label>
-            <select
-              className="search-input"
-              value={institutionId}
-              onChange={(e) => setInstitutionId(e.target.value)}
-              required
-              style={{ width: '100%', maxWidth: 360 }}
-            >
-              <option value="">Seleccionar institución…</option>
-              {educationInstitutions.map((inst) => (
-                <option key={inst.id} value={inst.id}>
-                  {inst.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Plantilla descargable */}
-        <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: '0.875rem' }}>
-            ¿No sabés qué columnas van? Descargá la plantilla
-          </label>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {(['xlsx', 'csv', 'txt'] as const).map((format) => (
-              <button
-                key={format}
-                type="button"
-                className="btn btn-sm btn-secondary"
-                disabled={downloadingTemplate !== null}
-                onClick={() => handleDownloadTemplate(format)}
-              >
-                {downloadingTemplate === format ? 'Descargando…' : `Plantilla ${TEMPLATE_FORMAT_LABEL[format]}`}
-              </button>
-            ))}
-          </div>
-          {templateError && (
-            <p style={{ margin: '6px 0 0', color: 'var(--color-danger)', fontSize: '0.8rem' }}>{templateError}</p>
-          )}
-        </div>
-
         {/* Zona de drop */}
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
@@ -352,7 +295,10 @@ function UploadPanel() {
             type="file"
             accept=".csv,.txt,.xlsx,.xls"
             style={{ display: 'none' }}
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              const selected = e.target.files?.[0]
+              if (selected) handleFile(selected)
+            }}
           />
           {file ? (
             <p style={{ margin: 0, fontWeight: 500, color: 'var(--color-primary)' }}>
@@ -365,25 +311,167 @@ function UploadPanel() {
                 Arrastrá el archivo aquí o hacé clic para seleccionar
               </p>
               <p style={{ margin: '4px 0 0', color: 'var(--color-muted)', fontSize: '0.8rem' }}>
-                CSV, TXT o Excel (.xlsx, .xls) — máximo 10 MB
+                CSV, TXT o Excel (.xlsx, .xls) — máximo 10 MB. Si el Excel tiene varias hojas, se detectan todas.
               </p>
             </>
           )}
         </div>
 
-        {errorMsg && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{errorMsg}</div>}
+        {isPreviewing && <p className="text-muted" style={{ marginBottom: '0.75rem' }}>Leyendo archivo…</p>}
+        {previewErrorMsg && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{previewErrorMsg}</div>}
+
+        {/* Asignación de fuente/institución por hoja */}
+        {assignments.length > 0 && (
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', fontWeight: 500, marginBottom: 6, fontSize: '0.875rem' }}>
+              {assignments.length > 1
+                ? `Se detectaron ${assignments.length} hojas — indicá la fuente e institución de cada una`
+                : 'Fuente del archivo'}
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {assignments.map((assignment, index) => (
+                <SheetAssignmentRow
+                  key={index}
+                  assignment={assignment}
+                  showLabel={assignments.length > 1}
+                  onChange={(patch) => updateAssignment(index, patch)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {submitErrorMsg && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{submitErrorMsg}</div>}
         {isSuccess && <div className="alert alert-success" style={{ marginBottom: '0.75rem' }}>Archivo enviado. El procesamiento comenzará en instantes.</div>}
 
         <div className="action-group">
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={!file || isPending || (source === 'education' && !institutionId)}
+            disabled={!canSubmit || isSubmitting}
           >
-            {isPending ? 'Enviando…' : 'Procesar archivo'}
+            {isSubmitting ? 'Enviando…' : 'Procesar archivo'}
           </button>
         </div>
       </form>
+    </div>
+  )
+}
+
+// ─── Fila de asignación de fuente/institución por hoja ───────────────────────
+
+const SOURCE_LABEL: Record<ImportSource, string> = {
+  civil_registry: 'Registro Civil',
+  education: 'Educación',
+  health: 'Salud',
+}
+
+const INSTITUTION_TYPE_BY_SOURCE: Partial<Record<ImportSource, 'educacion' | 'salud'>> = {
+  education: 'educacion',
+  health: 'salud',
+}
+
+function SheetAssignmentRow({
+  assignment,
+  showLabel,
+  onChange,
+}: {
+  assignment: ImportSheetAssignment
+  showLabel: boolean
+  onChange: (patch: Partial<ImportSheetAssignment>) => void
+}) {
+  const institutionType = INSTITUTION_TYPE_BY_SOURCE[assignment.source]
+  const institutions = useInstitutionOptions(institutionType ?? 'educacion', institutionType !== undefined)
+
+  const [downloadingTemplate, setDownloadingTemplate] = useState<TemplateFormat | null>(null)
+  const [templateError, setTemplateError] = useState<string | null>(null)
+
+  // Descarga autenticada: el token va en el header Authorization, no en
+  // cookies, así que no se puede navegar directo con un <a href>.
+  async function handleDownloadTemplate(format: TemplateFormat) {
+    setTemplateError(null)
+    setDownloadingTemplate(format)
+    try {
+      const response = await downloadImportTemplate(assignment.source, format)
+      const disposition = response.headers['content-disposition'] as string | undefined
+      const match = disposition?.match(/filename="?([^"]+)"?/)
+      const filename = match?.[1] ?? `plantilla_${assignment.source}.${format}`
+
+      const url = URL.createObjectURL(response.data as Blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      setTemplateError('No se pudo descargar la plantilla. Intentá de nuevo.')
+    } finally {
+      setDownloadingTemplate(null)
+    }
+  }
+
+  return (
+    <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius)', padding: '0.75rem' }}>
+      {showLabel && (
+        <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: 8 }}>
+          Hoja: {assignment.sheet_name ?? 'Archivo completo'}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: '1.5rem', marginBottom: institutionType ? 10 : 0 }}>
+        {(['civil_registry', 'education', 'health'] as const).map((s) => (
+          <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.875rem' }}>
+            <input
+              type="radio"
+              name={`source-${assignment.sheet_name ?? 'unica'}`}
+              value={s}
+              checked={assignment.source === s}
+              onChange={() => onChange({ source: s, institution_id: undefined })}
+            />
+            {SOURCE_LABEL[s]}
+          </label>
+        ))}
+      </div>
+
+      {institutionType && (
+        <div style={{ marginBottom: 10 }}>
+          <select
+            className="search-input"
+            value={assignment.institution_id ?? ''}
+            onChange={(e) => onChange({ institution_id: e.target.value || undefined })}
+            required
+            style={{ width: '100%', maxWidth: 360 }}
+          >
+            <option value="">
+              {institutionType === 'salud' ? 'Seleccionar institución de salud…' : 'Seleccionar institución educativa…'}
+            </option>
+            {institutions.map((inst) => (
+              <option key={inst.id} value={inst.id}>
+                {inst.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        {(['xlsx', 'csv', 'txt'] as const).map((format) => (
+          <button
+            key={format}
+            type="button"
+            className="btn btn-sm btn-secondary"
+            disabled={downloadingTemplate !== null}
+            onClick={() => handleDownloadTemplate(format)}
+          >
+            {downloadingTemplate === format ? 'Descargando…' : `Plantilla ${TEMPLATE_FORMAT_LABEL[format]}`}
+          </button>
+        ))}
+      </div>
+      {templateError && (
+        <p style={{ margin: '6px 0 0', color: 'var(--color-danger)', fontSize: '0.8rem' }}>{templateError}</p>
+      )}
     </div>
   )
 }

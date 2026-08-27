@@ -5,6 +5,19 @@ import { useAuth } from '../context/AuthContext'
 import { useInstitutionOptions } from '../hooks/useInstitutionOptions'
 import type { ApiErrorBody, HealthRecord } from '../types'
 
+// null = sin dato (ej: registro creado por importación sin esa columna) — no
+// equivale a "no está al día", así que no se muestra como alerta.
+function CheckupBadge({ value }: { value: boolean | null }) {
+  if (value === null) {
+    return <span className="badge badge-gray">Sin dato</span>
+  }
+  return value ? (
+    <span className="badge badge-green">Al día</span>
+  ) : (
+    <span className="badge badge-red">No al día ⚠</span>
+  )
+}
+
 interface HealthRecordCardProps {
   childId: string
   record: HealthRecord | null | undefined
@@ -88,20 +101,12 @@ export default function HealthRecordCard({
 
             <dt>Control de niño sano</dt>
             <dd>
-              {record.healthy_checkup_current ? (
-                <span className="badge badge-green">Al día</span>
-              ) : (
-                <span className="badge badge-red">No al día ⚠</span>
-              )}
+              <CheckupBadge value={record.healthy_checkup_current} />
             </dd>
 
             <dt>Vacunas</dt>
             <dd>
-              {record.vaccines_current ? (
-                <span className="badge badge-green">Al día</span>
-              ) : (
-                <span className="badge badge-red">No al día ⚠</span>
-              )}
+              <CheckupBadge value={record.vaccines_current} />
             </dd>
 
             <dt>Último control</dt>

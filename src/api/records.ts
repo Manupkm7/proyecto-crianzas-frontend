@@ -16,3 +16,12 @@ export const saveBirthRecord = (childId: string, exists: boolean, data: Record<s
 
 export const saveDeathRecord = (childId: string, exists: boolean, data: Record<string, unknown>) =>
   saveRecord(`/children/${childId}/death-record`, exists, data)
+
+// Desvincular (soft delete) el registro de dominio de un niño — solo admin.
+// Los datos se conservan en el historial; volver a vincular la misma institución
+// restaura el registro.
+export const deleteEducationRecord = (childId: string) =>
+  api.delete(`/children/${childId}/education-record`)
+
+export const deleteHealthRecord = (childId: string) =>
+  api.delete(`/children/${childId}/health-record`)

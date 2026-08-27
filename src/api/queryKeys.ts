@@ -18,6 +18,7 @@ export const queryKeys = {
     all: ['imports'] as const,
     detail: (id: string) => ['imports', id] as const,
     rows: (id: string, status?: string) => ['imports', id, 'rows', status] as const,
+    siblings: (id: string) => ['imports', id, 'siblings'] as const,
   },
   userImports: {
     all: ['user-imports'] as const,

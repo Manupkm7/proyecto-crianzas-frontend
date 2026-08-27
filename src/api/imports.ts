@@ -1,5 +1,12 @@
 import api from './client'
-import type { ApiItemResponse, ApiListResponse, ImportBatch, ImportRow } from '../types'
+import type {
+  ApiItemResponse,
+  ApiListResponse,
+  ImportBatch,
+  ImportPreviewResponse,
+  ImportRow,
+  ImportSheetAssignment,
+} from '../types'
 
 export const getImports = (params: { page?: number } = {}) =>
   api.get<ApiListResponse<ImportBatch>>('/imports', { params })
@@ -7,11 +14,26 @@ export const getImports = (params: { page?: number } = {}) =>
 export const getImport = (id: string) =>
   api.get<ApiItemResponse<ImportBatch>>(`/imports/${id}`)
 
-/** Sube un archivo CSV, TXT o XLSX. El Content-Type lo negocia axios al recibir FormData. */
-export const uploadImport = (formData: FormData) =>
-  api.post<ApiItemResponse<ImportBatch>>('/imports', formData, {
+/** Otras hojas creadas a partir del mismo archivo subido, para elegir contra cuál comparar. */
+export const getImportSiblings = (id: string) =>
+  api.get<ApiListResponse<ImportBatch>>(`/imports/${id}/siblings`)
+
+/**
+ * Sube un archivo CSV, TXT o XLSX y devuelve sus hojas detectadas (una entrada
+ * virtual para CSV/TXT) sin procesarlo todavía. El Content-Type lo negocia
+ * axios al recibir FormData.
+ */
+export const previewImport = (formData: FormData) =>
+  api.post<ImportPreviewResponse>('/imports/preview', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+
+/** Crea un batch por cada hoja asignada (fuente + institución) del archivo ya subido. */
+export const submitImportSheets = (data: {
+  storage_path: string
+  original_filename: string
+  sheets: ImportSheetAssignment[]
+}) => api.post<ApiListResponse<ImportBatch>>('/imports', data)
 
 /**
  * Descarga la plantilla de columnas esperadas para una fuente, en el formato
@@ -19,7 +41,7 @@ export const uploadImport = (formData: FormData) =>
  * (no en cookies), así que no se puede navegar directo con un <a href>.
  */
 export const downloadImportTemplate = (
-  source: 'civil_registry' | 'education',
+  source: 'civil_registry' | 'education' | 'health',
   format: 'xlsx' | 'csv' | 'txt',
 ) =>
   api.get('/imports/template', {
@@ -35,5 +57,17 @@ export const getImportRows = (
 export const resolveImportRow = (
   batchId: string,
   rowId: string,
-  data: { action: 'confirm' | 'skip'; child_id?: string },
+  data: { action: 'confirm' | 'skip'; child_id?: string; data_source?: 'row' | 'matched_row' },
 ) => api.patch(`/imports/${batchId}/rows/${rowId}/resolve`, data)
+
+/** Crea un niño nuevo por cada fila 'no_match' del lote — para cuando no hay ninguna hoja con la que comparar. */
+export const bulkResolveNoMatch = (batchId: string) =>
+  api.post<{ message: string; resolved: number; skipped_lines: number[] }>(
+    `/imports/${batchId}/rows/bulk-resolve`,
+  )
+
+/** Recompara las filas sin resolver del batch contra una hoja elegida a mano por el operador. */
+export const rematchImportBatch = (batchId: string, againstBatchId: string) =>
+  api.post<{ message: string; updated: number }>(`/imports/${batchId}/rematch`, {
+    against_batch_id: againstBatchId,
+  })
