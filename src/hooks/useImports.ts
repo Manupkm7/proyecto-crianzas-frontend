@@ -7,11 +7,12 @@ import {
   getImportSiblings,
   previewImport,
   rematchImportBatch,
+  reopenImportRow,
   resolveImportRow,
   submitImportSheets,
 } from '../api/imports'
 import { queryKeys } from '../api/queryKeys'
-import type { ImportBatch, ImportRow, ImportSheetAssignment } from '../types'
+import type { ImportBatch, ImportRow, ImportRowOverrides, ImportSheetAssignment } from '../types'
 
 export function useImportsQuery(page = 1) {
   return useQuery({
@@ -91,12 +92,20 @@ export function useResolveRowMutation(batchId: string) {
       action,
       childId,
       dataSource,
+      overrides,
     }: {
       rowId: string
       action: 'confirm' | 'skip'
       childId?: string
       dataSource?: 'row' | 'matched_row'
-    }) => resolveImportRow(batchId, rowId, { action, child_id: childId, data_source: dataSource }),
+      overrides?: ImportRowOverrides
+    }) =>
+      resolveImportRow(batchId, rowId, {
+        action,
+        child_id: childId,
+        data_source: dataSource,
+        overrides,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.imports.detail(batchId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.imports.rows(batchId) })
@@ -133,6 +142,18 @@ export function useRematchBatchMutation(batchId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (againstBatchId: string) => rematchImportBatch(batchId, againstBatchId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.imports.detail(batchId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.imports.rows(batchId) })
+    },
+  })
+}
+
+/** Reabre una fila ya resuelta ('matched' o 'manual_resolved') para corregirla. */
+export function useReopenRowMutation(batchId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (rowId: string) => reopenImportRow(batchId, rowId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.imports.detail(batchId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.imports.rows(batchId) })

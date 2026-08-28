@@ -6,22 +6,25 @@ import {
   useImportRowsQuery,
   useImportSiblingsQuery,
   useRematchBatchMutation,
+  useReopenRowMutation,
   useResolveRowMutation,
 } from "../hooks/useImports";
-import type { ImportBatch, ImportRow } from "../types";
+import type { ImportBatch, ImportRow, ImportRowOverrides } from "../types";
 import styles from "./css/ImportReviewPage.module.css";
-import { IconAlert, IconArrowLeft, IconCheck } from "../components/icons";
+import { IconAlert, IconArrowLeft, IconCheck, IconEdit } from "../components/icons";
 import { Button } from "../components/Button";
 
 type StatusFilter =
   | "partial_match"
   | "no_match"
+  | "matched"
   | "manual_resolved"
   | "skipped";
 
 const FILTER_TABS: { value: StatusFilter | ""; label: string }[] = [
   { value: "partial_match", label: "A revisar" },
   { value: "no_match", label: "Sin coincidencia" },
+  { value: "matched", label: "Emparejados" },
   { value: "manual_resolved", label: "Resueltos" },
   { value: "skipped", label: "Descartados" },
 ];
@@ -434,11 +437,18 @@ function BulkResolveBar({
 
 function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
   const { mutate: resolve, isPending } = useResolveRowMutation(batchId);
+  const { mutate: reopen, isPending: isReopening } = useReopenRowMutation(batchId);
   const [resolved, setResolved] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmingReopen, setConfirmingReopen] = useState(false);
   // Con cuál de las dos filas quedarse (nombre + fecha de nacimiento) cuando hay
   // contraparte y hay que crear un niño nuevo. Por defecto, esta fila.
   const [dataSource, setDataSource] = useState<"row" | "matched_row">("row");
+  // Correcciones que el operador tipea a mano antes de confirmar (pedido del
+  // cliente: poder editar el niño al aceptar el matcheo) — solo corrigen los
+  // datos de ESTA fila, nunca los de la contraparte.
+  const [editing, setEditing] = useState(false);
+  const [overrides, setOverrides] = useState<ImportRowOverrides>({});
 
   if (resolved) {
     return (
@@ -465,6 +475,10 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
         action,
         childId,
         dataSource: row.matched_row ? dataSource : undefined,
+        overrides:
+          editing && action === "confirm" && Object.keys(overrides).length > 0
+            ? overrides
+            : undefined,
       },
       {
         onSuccess: () => setResolved(true),
@@ -482,7 +496,13 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
 
   const isPartialMatch = row.status === "partial_match";
   const isResolved =
-    row.status === "manual_resolved" || row.status === "skipped";
+    row.status === "manual_resolved" ||
+    row.status === "skipped" ||
+    row.status === "matched";
+  // 'matched'/'manual_resolved' se pueden reabrir para corregir; 'skipped' no
+  // (descartar es una decisión distinta, no un vínculo a deshacer).
+  const isReopenable =
+    row.status === "matched" || row.status === "manual_resolved";
   const suggestedChild = row.suggested_child;
 
   const confidenceColor =
@@ -493,11 +513,22 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
         : "var(--color-muted)";
 
   const banner = confidenceBanner(row.match_confidence);
-  const headline = suggestedChild
-    ? "Coincidencia parcial con un niño existente — DNI, nombre o apellido no coinciden los 3 a la vez. Revisar antes de vincular."
-    : row.status === "partial_match"
-      ? "Posible coincidencia — diferencia de tildes o variante. Revisar antes de confirmar."
-      : "Sin coincidencia en la fuente opuesta — se creará un niño nuevo si confirmás.";
+  const headline =
+    row.status === "manual_resolved"
+      ? "Resuelto manualmente."
+      : row.status === "matched"
+        ? "Emparejado automáticamente (dato de antes de que el sistema pidiera aprobación siempre) — se puede reabrir para revisar."
+        : (row.match_confidence ?? 0) >= 100
+          ? "Coincidencia exacta — DNI, nombre, apellido y fecha de nacimiento coinciden. De todos modos necesita tu aprobación explícita para crear o vincular el registro: ningún niño se da de alta solo."
+          : suggestedChild
+            ? "Coincidencia parcial con un niño existente — DNI, nombre o apellido no coinciden los 3 a la vez. Revisar antes de vincular."
+            : row.status === "partial_match"
+              ? row.match_confidence === 70
+                ? "El DNI coincide con la contraparte, pero el nombre es distinto — revisar si es la misma persona antes de confirmar."
+                : row.match_confidence === 75
+                  ? "Hay más de un candidato posible con el mismo nombre y fecha — revisar cuál corresponde."
+                  : "Posible coincidencia — diferencia de tildes o variante. Revisar antes de confirmar."
+              : "Sin coincidencia en la fuente opuesta — se creará un niño nuevo si confirmás.";
 
   return (
     <article className={styles.matchCard}>
@@ -539,7 +570,8 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
         style={{
           display: "grid",
           gridTemplateColumns:
-            isPartialMatch && (row.matched_row || suggestedChild)
+            (isPartialMatch && (row.matched_row || suggestedChild)) ||
+            (isResolved && row.child)
               ? "1fr auto 1fr"
               : "1fr",
           gap: "1rem",
@@ -641,7 +673,63 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
             />
           </>
         )}
+
+        {/* Niño al que quedó vinculada la fila (ya resuelta, auto o manualmente) */}
+        {isResolved && row.child && (
+          <>
+            <div
+              style={{
+                textAlign: "center",
+                color: "var(--color-success)",
+                alignSelf: "center",
+                fontSize: "1.75rem",
+              }}
+            >
+              ⟷
+            </div>
+
+            <DataPanel
+              label={
+                row.status === "matched"
+                  ? "Niño vinculado (automático)"
+                  : "Niño vinculado"
+              }
+              firstName={row.child.first_name}
+              lastName={row.child.last_name}
+              birthDate={row.child.birth_date}
+              dni={row.child.dni}
+              framed
+            />
+          </>
+        )}
       </div>
+
+      {/* Editar antes de confirmar — corrige datos mal cargados en el archivo
+          (nombre, DNI, fecha de nacimiento, etc.) sin tener que arreglar el
+          Excel y volver a subirlo. Solo corrige los datos de ESTA fila. */}
+      {!isResolved && (
+        <div
+          style={{
+            padding: "0 1rem 0.75rem",
+            borderTop: editing ? "1px solid var(--color-border)" : undefined,
+          }}
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            style={{ marginTop: editing ? "0.75rem" : 0 }}
+            onClick={() => setEditing((value) => !value)}
+          >
+            <IconEdit size={14} />{" "}
+            {editing ? "Cancelar edición" : "Editar antes de confirmar"}
+          </Button>
+
+          {editing && (
+            <EditRowForm row={row} overrides={overrides} onChange={setOverrides} />
+          )}
+        </div>
+      )}
 
       {/* Todas las columnas del archivo, tal cual vinieron */}
       <RawColumnsTable columns={row.raw_columns} />
@@ -757,11 +845,75 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
           style={{
             padding: "0.6rem 1rem",
             borderTop: "1px solid var(--color-border)",
-            fontSize: "0.8rem",
-            color: "var(--color-success)",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            flexWrap: "wrap",
           }}
         >
-          ✓ Ya resuelto
+          <span style={{ fontSize: "0.8rem", color: "var(--color-success)" }}>
+            {row.status === "matched"
+              ? "✓ Emparejado automáticamente"
+              : row.status === "skipped"
+                ? "— Descartado"
+                : "✓ Resuelto"}
+          </span>
+
+          {isReopenable && !confirmingReopen && (
+            <Button
+              variant="ghost"
+              style={{ marginLeft: "auto" }}
+              disabled={isReopening}
+              onClick={() => setConfirmingReopen(true)}
+            >
+              Reabrir esta fila
+            </Button>
+          )}
+
+          {isReopenable && confirmingReopen && (
+            <span
+              style={{
+                marginLeft: "auto",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                fontSize: "0.8rem",
+              }}
+            >
+              <span style={{ color: "var(--color-warning)" }}>
+                {row.child
+                  ? `¿Reabrir? El registro ya creado para ${row.child.first_name} ${row.child.last_name} no se borra solo — quedará para corregirlo a mano si el niño correcto es otro.`
+                  : "¿Reabrir esta fila para corregirla?"}
+              </span>
+              <Button
+                variant="primary"
+                disabled={isReopening}
+                onClick={() =>
+                  reopen(row.id, {
+                    onSuccess: () => setConfirmingReopen(false),
+                    onError: (err) => {
+                      const message = (
+                        err as { response?: { data?: { message?: string } } }
+                      ).response?.data?.message;
+                      setActionError(
+                        message ?? "No se pudo reabrir la fila. Intentá de nuevo.",
+                      );
+                      setConfirmingReopen(false);
+                    },
+                  })
+                }
+              >
+                {isReopening ? "…" : "Sí, reabrir"}
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={isReopening}
+                onClick={() => setConfirmingReopen(false)}
+              >
+                Cancelar
+              </Button>
+            </span>
+          )}
         </div>
       )}
     </article>
@@ -769,6 +921,251 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
 }
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
+
+const editInputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "0.4rem 0.5rem",
+  fontSize: "0.85rem",
+  border: "1px solid var(--color-border)",
+  borderRadius: "var(--radius)",
+  background: "var(--color-surface)",
+  color: "var(--color-text)",
+};
+
+function EditField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        fontSize: "0.72rem",
+        fontWeight: 600,
+        color: "var(--color-muted)",
+      }}
+    >
+      {label}
+      {children}
+    </label>
+  );
+}
+
+function TriStateSelect({
+  value,
+  onChange,
+}: {
+  value: boolean | null | undefined;
+  onChange: (value: boolean | null) => void;
+}) {
+  return (
+    <select
+      style={editInputStyle}
+      value={value === true ? "true" : value === false ? "false" : ""}
+      onChange={(e) =>
+        onChange(
+          e.target.value === "" ? null : e.target.value === "true",
+        )
+      }
+    >
+      <option value="">Sin dato</option>
+      <option value="true">Sí</option>
+      <option value="false">No</option>
+    </select>
+  );
+}
+
+/**
+ * Formulario de corrección manual — pedido explícito del cliente: poder
+ * editar el niño al aceptar el matcheo (ej. arreglar un DNI o nombre mal
+ * cargado en el archivo) sin tener que corregir el Excel y volver a subirlo.
+ * Los campos arrancan pre-cargados con el valor del archivo; lo que el
+ * operador toca se manda como `overrides` y pisa esos datos SOLO para esta
+ * fila al confirmar (ver ImportController::confirmRow()).
+ */
+function EditRowForm({
+  row,
+  overrides,
+  onChange,
+}: {
+  row: ImportRow;
+  overrides: ImportRowOverrides;
+  onChange: (next: ImportRowOverrides) => void;
+}) {
+  function set<K extends keyof ImportRowOverrides>(
+    key: K,
+    value: ImportRowOverrides[K],
+  ) {
+    onChange({ ...overrides, [key]: value });
+  }
+
+  function textValue(
+    key: Extract<keyof ImportRowOverrides, string>,
+    fallback?: string | null,
+  ): string {
+    const current = overrides[key];
+    return (typeof current === "string" ? current : fallback) ?? "";
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: "0.75rem",
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+        gap: "0.6rem",
+      }}
+    >
+      <EditField label="Nombre">
+        <input
+          style={editInputStyle}
+          value={textValue("first_name", row.first_name)}
+          onChange={(e) => set("first_name", e.target.value)}
+        />
+      </EditField>
+      <EditField label="Apellido">
+        <input
+          style={editInputStyle}
+          value={textValue("last_name", row.last_name)}
+          onChange={(e) => set("last_name", e.target.value)}
+        />
+      </EditField>
+      <EditField label="DNI">
+        <input
+          style={editInputStyle}
+          value={textValue("dni", row.dni)}
+          onChange={(e) => set("dni", e.target.value)}
+        />
+      </EditField>
+      <EditField label="Fecha de nacimiento">
+        <input
+          type="date"
+          style={editInputStyle}
+          value={textValue("birth_date", row.birth_date)}
+          onChange={(e) => set("birth_date", e.target.value)}
+        />
+      </EditField>
+
+      {row.source === "civil_registry" && (
+        <>
+          <EditField label="Nombre de la madre">
+            <input
+              style={editInputStyle}
+              value={textValue("mother_name", row.mother_name)}
+              onChange={(e) => set("mother_name", e.target.value)}
+            />
+          </EditField>
+          <EditField label="DNI de la madre">
+            <input
+              style={editInputStyle}
+              value={textValue("mother_dni", row.mother_dni)}
+              onChange={(e) => set("mother_dni", e.target.value)}
+            />
+          </EditField>
+          <EditField label="Nombre del padre">
+            <input
+              style={editInputStyle}
+              value={textValue("father_name", row.father_name)}
+              onChange={(e) => set("father_name", e.target.value)}
+            />
+          </EditField>
+          <EditField label="DNI del padre">
+            <input
+              style={editInputStyle}
+              value={textValue("father_dni", row.father_dni)}
+              onChange={(e) => set("father_dni", e.target.value)}
+            />
+          </EditField>
+          <EditField label="Establecimiento">
+            <input
+              style={editInputStyle}
+              value={textValue("birth_establishment", row.birth_establishment)}
+              onChange={(e) => set("birth_establishment", e.target.value)}
+            />
+          </EditField>
+          <EditField label="Domicilio">
+            <input
+              style={editInputStyle}
+              value={textValue("address", row.address)}
+              onChange={(e) => set("address", e.target.value)}
+            />
+          </EditField>
+        </>
+      )}
+
+      {row.source === "education" && (
+        <>
+          <EditField label="Escuela">
+            <input
+              style={editInputStyle}
+              value={textValue("school_name", row.school_name)}
+              onChange={(e) => set("school_name", e.target.value)}
+            />
+          </EditField>
+          <EditField label="Grado/Año">
+            <input
+              style={editInputStyle}
+              value={textValue("grade_or_year", row.grade_or_year)}
+              onChange={(e) => set("grade_or_year", e.target.value)}
+            />
+          </EditField>
+        </>
+      )}
+
+      {row.source === "health" && (
+        <>
+          <EditField label="Centro de salud">
+            <input
+              style={editInputStyle}
+              value={textValue("health_center_name", row.health_center_name)}
+              onChange={(e) => set("health_center_name", e.target.value)}
+            />
+          </EditField>
+          <EditField label="Control sano">
+            <TriStateSelect
+              value={
+                overrides.healthy_checkup_current !== undefined
+                  ? overrides.healthy_checkup_current
+                  : row.healthy_checkup_current
+              }
+              onChange={(v) => set("healthy_checkup_current", v)}
+            />
+          </EditField>
+          <EditField label="Vacunas al día">
+            <TriStateSelect
+              value={
+                overrides.vaccines_current !== undefined
+                  ? overrides.vaccines_current
+                  : row.vaccines_current
+              }
+              onChange={(v) => set("vaccines_current", v)}
+            />
+          </EditField>
+          <EditField label="Último control">
+            <input
+              type="date"
+              style={editInputStyle}
+              value={textValue("last_checkup_date", row.last_checkup_date)}
+              onChange={(e) => set("last_checkup_date", e.target.value)}
+            />
+          </EditField>
+          <EditField label="Observaciones">
+            <input
+              style={editInputStyle}
+              value={textValue("observations", row.observations)}
+              onChange={(e) => set("observations", e.target.value)}
+            />
+          </EditField>
+        </>
+      )}
+    </div>
+  );
+}
 
 function boolLabel(value: boolean | null | undefined): string {
   return value === true ? "Al día" : value === false ? "No al día" : "Sin dato";

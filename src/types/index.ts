@@ -393,6 +393,27 @@ export interface SuggestedChild {
   dni?: string | null
 }
 
+/** Correcciones que el operador tipea a mano antes de confirmar una fila (ver ReviewCard). */
+export interface ImportRowOverrides {
+  first_name?: string | null
+  last_name?: string | null
+  dni?: string | null
+  birth_date?: string | null
+  mother_name?: string | null
+  mother_dni?: string | null
+  father_name?: string | null
+  father_dni?: string | null
+  address?: string | null
+  birth_establishment?: string | null
+  school_name?: string | null
+  grade_or_year?: string | null
+  health_center_name?: string | null
+  healthy_checkup_current?: boolean | null
+  vaccines_current?: boolean | null
+  last_checkup_date?: string | null
+  observations?: string | null
+}
+
 export interface ImportRow {
   id: string
   status: ImportRowStatus

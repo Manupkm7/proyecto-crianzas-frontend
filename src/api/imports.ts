@@ -5,6 +5,7 @@ import type {
   ImportBatch,
   ImportPreviewResponse,
   ImportRow,
+  ImportRowOverrides,
   ImportSheetAssignment,
 } from '../types'
 
@@ -57,7 +58,12 @@ export const getImportRows = (
 export const resolveImportRow = (
   batchId: string,
   rowId: string,
-  data: { action: 'confirm' | 'skip'; child_id?: string; data_source?: 'row' | 'matched_row' },
+  data: {
+    action: 'confirm' | 'skip'
+    child_id?: string
+    data_source?: 'row' | 'matched_row'
+    overrides?: ImportRowOverrides
+  },
 ) => api.patch(`/imports/${batchId}/rows/${rowId}/resolve`, data)
 
 /** Crea un niño nuevo por cada fila 'no_match' del lote — para cuando no hay ninguna hoja con la que comparar. */
@@ -71,3 +77,7 @@ export const rematchImportBatch = (batchId: string, againstBatchId: string) =>
   api.post<{ message: string; updated: number }>(`/imports/${batchId}/rematch`, {
     against_batch_id: againstBatchId,
   })
+
+/** Reabre una fila ya resuelta ('matched' o 'manual_resolved') para corregirla. */
+export const reopenImportRow = (batchId: string, rowId: string) =>
+  api.post<{ message: string; row: ImportRow }>(`/imports/${batchId}/rows/${rowId}/reopen`)
