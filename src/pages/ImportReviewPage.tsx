@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   useBulkResolveNoMatchMutation,
+  useImportConfidenceSummaryQuery,
   useImportQuery,
   useImportRowsQuery,
   useImportSiblingsQuery,
@@ -9,10 +10,36 @@ import {
   useReopenRowMutation,
   useResolveRowMutation,
 } from "../hooks/useImports";
-import type { ImportBatch, ImportRow, ImportRowOverrides } from "../types";
+import type {
+  Child,
+  ImportBatch,
+  ImportRow,
+  ImportRowOverrides,
+} from "../types";
 import styles from "./css/ImportReviewPage.module.css";
-import { IconAlert, IconArrowLeft, IconCheck, IconEdit } from "../components/icons";
+import {
+  IconAlert,
+  IconArrowLeft,
+  IconCheck,
+  IconEdit,
+} from "../components/icons";
 import { Button } from "../components/Button";
+import { Spinner } from "../components/Spinner";
+
+// Cuánto se mantiene visible el aviso de "recién resuelto" una vez que la fila
+// desaparece de la lista filtrada actual (cambió de estado y ya no matchea el
+// tab/filtro elegido). Antes desaparecía apenas React Query refrescaba la
+// lista, dando la sensación de que el niño "se perdía" aunque en realidad
+// estaba en la pestaña de Resueltos — ver RecentlyResolvedBanner más abajo.
+const RECENTLY_RESOLVED_MS = 15_000;
+
+interface RecentlyResolved {
+  rowId: string;
+  fileLineNumber: number | null | undefined;
+  action: "confirm" | "skip";
+  child?: Child | null;
+  resolvedAt: number;
+}
 
 type StatusFilter =
   | "partial_match"
@@ -35,17 +62,67 @@ export default function ImportReviewPage() {
     "partial_match",
   );
   const [page, setPage] = useState(1);
+  // Sub-filtro por nivel de confianza, solo tiene sentido dentro de "A revisar"
+  // (partial_match) — ahí es donde el % varía fila por fila y agrupar evita
+  // repetir el mismo banner de confianza en cada card (ver confidenceGroups).
+  const [confidenceFilter, setConfidenceFilter] = useState<number | "all">(
+    "all",
+  );
 
   const { data: batch, isLoading: batchLoading } = useImportQuery(id);
   const { data: rowsData, isLoading: rowsLoading } = useImportRowsQuery(
     id,
     statusFilter || undefined,
     page,
+    statusFilter === "partial_match" && confidenceFilter !== "all"
+      ? confidenceFilter
+      : undefined,
+  );
+  // Conteo por % de confianza del batch entero (no solo la página actual de
+  // `rows`), para que las sub-tabs reflejen el total real aunque esté repartido
+  // en varias páginas — ver confidenceSummary() en el backend.
+  const { data: confidenceGroups = [] } = useImportConfidenceSummaryQuery(
+    id,
+    statusFilter === "partial_match",
   );
 
   const rows = rowsData?.items ?? [];
 
-  if (batchLoading) return <p className="text-muted">Cargando…</p>;
+  // Filas resueltas hace poco: la fila desaparece de `rows` apenas React Query
+  // refresca la lista (cambió de estado, ya no matchea el filtro actual), pero
+  // seguimos mostrando un aviso fijo con acceso al niño durante un rato para
+  // que no parezca que "se perdió" — ver RECENTLY_RESOLVED_MS.
+  const [recentlyResolved, setRecentlyResolved] = useState<RecentlyResolved[]>(
+    [],
+  );
+
+  useEffect(() => {
+    if (recentlyResolved.length === 0) return;
+    const interval = setInterval(() => {
+      setRecentlyResolved((prev) =>
+        prev.filter((r) => Date.now() - r.resolvedAt < RECENTLY_RESOLVED_MS),
+      );
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [recentlyResolved.length]);
+
+  function handleRowResolved(entry: Omit<RecentlyResolved, "resolvedAt">) {
+    setRecentlyResolved((prev) => [
+      ...prev.filter((r) => r.rowId !== entry.rowId),
+      { ...entry, resolvedAt: Date.now() },
+    ]);
+  }
+
+  if (batchLoading)
+    return (
+      <div
+        className="text-muted"
+        style={{ display: "flex", alignItems: "center", gap: 10, padding: "2rem 0" }}
+      >
+        <Spinner size={20} />
+        Cargando…
+      </div>
+    );
   if (!batch) return <p>Importación no encontrada.</p>;
 
   const isProcessing =
@@ -149,6 +226,7 @@ export default function ImportReviewPage() {
               onClick={() => {
                 setStatusFilter(tab.value);
                 setPage(1);
+                setConfidenceFilter("all");
               }}
               style={{
                 background: "none",
@@ -201,18 +279,97 @@ export default function ImportReviewPage() {
           <BulkResolveBar batchId={batch.id} count={batch.rows.no_match} />
         )}
 
+      {/* Sub-filtro por nivel de confianza — agrupa las filas de "A revisar" por
+          su % en vez de repetir el mismo banner grande en cada card. */}
+      {statusFilter === "partial_match" && confidenceGroups.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "0.4rem",
+            marginBottom: "0.5rem",
+          }}
+        >
+          <ConfidenceTab
+            label="Todos"
+            count={batch.rows.partial}
+            active={confidenceFilter === "all"}
+            onClick={() => {
+              setConfidenceFilter("all");
+              setPage(1);
+            }}
+          />
+          {confidenceGroups.map((g) => (
+            <ConfidenceTab
+              key={g.confidence}
+              label={`${g.confidence}%`}
+              count={g.count}
+              active={confidenceFilter === g.confidence}
+              onClick={() => {
+                setConfidenceFilter(g.confidence);
+                setPage(1);
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {statusFilter === "partial_match" && confidenceFilter !== "all" && (
+        <p
+          className="text-muted"
+          style={{ fontSize: "0.8rem", marginTop: 0, marginBottom: "0.75rem" }}
+        >
+          {partialMatchHeadline(confidenceFilter)}
+        </p>
+      )}
+
+      {/* Avisos fijos de filas resueltas hace poco (ver RECENTLY_RESOLVED_MS) —
+          se muestran acá aparte porque la fila ya puede haber desaparecido de
+          `rows` de abajo (cambió de estado, no matchea más el filtro actual). */}
+      {recentlyResolved.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+            marginBottom: "0.75rem",
+          }}
+        >
+          {recentlyResolved.map((entry) => (
+            <RecentlyResolvedBanner key={entry.rowId} entry={entry} />
+          ))}
+        </div>
+      )}
+
       {/* Listado de filas */}
-      {rowsLoading && <p className="text-muted">Cargando filas…</p>}
+      {rowsLoading && (
+        <div
+          className="text-muted"
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "1.5rem 0" }}
+        >
+          <Spinner size={20} />
+          Cargando filas…
+        </div>
+      )}
 
       {!rowsLoading && rows.length === 0 && (
         <div className="empty-state">
-          <p>No hay filas en este estado.</p>
+          <p>
+            {statusFilter === "partial_match" && confidenceFilter !== "all"
+              ? "No hay filas con ese nivel de confianza."
+              : "No hay filas en este estado."}
+          </p>
         </div>
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         {rows.map((row) => (
-          <ReviewCard key={row.id} row={row} batchId={id!} />
+          <ReviewCard
+            key={row.id}
+            row={row}
+            batchId={id!}
+            onResolved={handleRowResolved}
+          />
         ))}
       </div>
 
@@ -435,10 +592,20 @@ function BulkResolveBar({
 
 // ─── Tarjeta de revisión de una fila ─────────────────────────────────────────
 
-function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
+function ReviewCard({
+  row,
+  batchId,
+  onResolved,
+}: {
+  row: ImportRow;
+  batchId: string;
+  onResolved?: (entry: Omit<RecentlyResolved, "resolvedAt">) => void;
+}) {
   const { mutate: resolve, isPending } = useResolveRowMutation(batchId);
-  const { mutate: reopen, isPending: isReopening } = useReopenRowMutation(batchId);
+  const { mutate: reopen, isPending: isReopening } =
+    useReopenRowMutation(batchId);
   const [resolved, setResolved] = useState(false);
+  const [resolvedChild, setResolvedChild] = useState<Child | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmingReopen, setConfirmingReopen] = useState(false);
   // Con cuál de las dos filas quedarse (nombre + fecha de nacimiento) cuando hay
@@ -460,9 +627,17 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
           background: "#f0fdf4",
           color: "var(--color-success)",
           fontSize: "0.875rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
         }}
       >
-        ✓ Resuelto — fila #{row.file_line_number}
+        <span>
+          ✓ Resuelto — fila #{row.file_line_number}
+          {resolvedChild &&
+            ` · ${resolvedChild.last_name}, ${resolvedChild.first_name}`}
+        </span>
+        {resolvedChild && <OpenChildButton childId={resolvedChild.id} />}
       </div>
     );
   }
@@ -481,7 +656,17 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
             : undefined,
       },
       {
-        onSuccess: () => setResolved(true),
+        onSuccess: (response) => {
+          const child = response.data.row.child ?? null;
+          setResolved(true);
+          setResolvedChild(child);
+          onResolved?.({
+            rowId: row.id,
+            fileLineNumber: row.file_line_number,
+            action,
+            child,
+          });
+        },
         onError: (err) => {
           const message = (
             err as { response?: { data?: { message?: string } } }
@@ -532,39 +717,50 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
 
   return (
     <article className={styles.matchCard}>
-      {/* Encabezado de la card — banner grande de confianza, imposible de pasar por alto */}
-      <header className={styles.matchHeader}>
-        <div
-          style={{
-            fontSize: "1.6rem",
-            fontWeight: 800,
-            color: banner.text,
-            lineHeight: 1,
-            minWidth: 70,
-            textAlign: "center",
-          }}
-        >
-          {row.match_confidence != null
-            ? `${row.match_confidence}%`
-            : banner.icon}
-        </div>
-        <span
-          style={{ color: banner.text, fontWeight: 600, fontSize: "0.95rem" }}
-        >
-          {headline}
-        </span>
-        <span
-          style={{
-            marginLeft: "auto",
-            color: banner.text,
-            opacity: 0.75,
-            fontSize: "0.8rem",
-          }}
-        >
-          Línea #{row.file_line_number}
-        </span>
-      </header>
-
+      {/* Encabezado de la card. En "A revisar" (isPartialMatch) el % y el texto
+          explicativo ya se muestran una sola vez arriba, por las sub-tabs de
+          confianza (ver ConfidenceTab/partialMatchHeadline en ImportReviewPage)
+          — repetirlos acá card por card era redundante cuando había muchas del
+          mismo %. Para las demás pestañas se mantiene el banner completo. */}
+      {isPartialMatch ? null : (
+        <header className={styles.matchHeader}>
+          <>
+            <div
+              style={{
+                fontSize: "1.6rem",
+                fontWeight: 800,
+                color: banner.text,
+                lineHeight: 1,
+                minWidth: 70,
+                textAlign: "center",
+              }}
+            >
+              {row.match_confidence != null
+                ? `${row.match_confidence}%`
+                : banner.icon}
+            </div>
+            <span
+              style={{
+                color: banner.text,
+                fontWeight: 600,
+                fontSize: "0.95rem",
+              }}
+            >
+              {headline}
+            </span>
+            <span
+              style={{
+                marginLeft: "auto",
+                color: banner.text,
+                opacity: 0.75,
+                fontSize: "0.8rem",
+              }}
+            >
+              Línea #{row.file_line_number}
+            </span>
+          </>
+        </header>
+      )}
       {/* Comparación de datos */}
       <div
         style={{
@@ -664,6 +860,7 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
               firstName={suggestedChild.first_name}
               lastName={suggestedChild.last_name}
               birthDate={suggestedChild.birth_date}
+              birthDateIsPlaceholder={suggestedChild.birth_date_is_placeholder}
               dni={suggestedChild.dni}
               highlight={
                 suggestedChild.first_name !== row.first_name ||
@@ -697,6 +894,7 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
               firstName={row.child.first_name}
               lastName={row.child.last_name}
               birthDate={row.child.birth_date}
+              birthDateIsPlaceholder={row.child.birth_date_is_placeholder}
               dni={row.child.dni}
               framed
             />
@@ -726,7 +924,11 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
           </Button>
 
           {editing && (
-            <EditRowForm row={row} overrides={overrides} onChange={setOverrides} />
+            <EditRowForm
+              row={row}
+              overrides={overrides}
+              onChange={setOverrides}
+            />
           )}
         </div>
       )}
@@ -807,7 +1009,11 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
               >
                 {isPending ? "…" : "✓ Confirmar como el mismo niño"}
               </Button>
-              <Button disabled={isPending} variant="ghost" onClick={() => handleAction("skip")}>
+              <Button
+                disabled={isPending}
+                variant="ghost"
+                onClick={() => handleAction("skip")}
+              >
                 Descartar
               </Button>
             </>
@@ -820,7 +1026,11 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
               >
                 {isPending ? "…" : "+ Crear registro de niño"}
               </Button>
-              <Button disabled={isPending} variant="ghost" onClick={() => handleAction("skip")}>
+              <Button
+                disabled={isPending}
+                variant="ghost"
+                onClick={() => handleAction("skip")}
+              >
                 Descartar
               </Button>
             </>
@@ -896,7 +1106,8 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
                         err as { response?: { data?: { message?: string } } }
                       ).response?.data?.message;
                       setActionError(
-                        message ?? "No se pudo reabrir la fila. Intentá de nuevo.",
+                        message ??
+                          "No se pudo reabrir la fila. Intentá de nuevo.",
                       );
                       setConfirmingReopen(false);
                     },
@@ -917,6 +1128,61 @@ function ReviewCard({ row, batchId }: { row: ImportRow; batchId: string }) {
         </div>
       )}
     </article>
+  );
+}
+
+/** Abre la ficha del niño en una pestaña nueva, sin perder el lugar en la revisión. */
+function OpenChildButton({ childId }: { childId: string }) {
+  return (
+    <Button
+      variant="secondary"
+      size="sm"
+      style={{ marginLeft: "auto", flexShrink: 0 }}
+      onClick={() =>
+        window.open(`/children/${childId}`, "_blank", "noopener,noreferrer")
+      }
+    >
+      Ver niño ↗
+    </Button>
+  );
+}
+
+/**
+ * Aviso fijo de una fila resuelta hace poco (ver RECENTLY_RESOLVED_MS en
+ * ImportReviewPage). Vive aparte de ReviewCard porque tiene que seguir visible
+ * incluso después de que la fila desaparezca de la lista filtrada actual.
+ */
+function RecentlyResolvedBanner({ entry }: { entry: RecentlyResolved }) {
+  const label =
+    entry.action === "skip"
+      ? "— Descartada"
+      : entry.child
+        ? `✓ Vinculada a ${entry.child.last_name}, ${entry.child.first_name}`
+        : "✓ Resuelta";
+
+  return (
+    <div
+      style={{
+        padding: "0.75rem 1rem",
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius)",
+        background:
+          entry.action === "skip" ? "var(--color-surface)" : "#f0fdf4",
+        color:
+          entry.action === "skip"
+            ? "var(--color-muted)"
+            : "var(--color-success)",
+        fontSize: "0.875rem",
+        display: "flex",
+        alignItems: "center",
+        gap: "0.75rem",
+      }}
+    >
+      <span>
+        {label} — fila #{entry.fileLineNumber}
+      </span>
+      {entry.child && <OpenChildButton childId={entry.child.id} />}
+    </div>
   );
 }
 
@@ -968,9 +1234,7 @@ function TriStateSelect({
       style={editInputStyle}
       value={value === true ? "true" : value === false ? "false" : ""}
       onChange={(e) =>
-        onChange(
-          e.target.value === "" ? null : e.target.value === "true",
-        )
+        onChange(e.target.value === "" ? null : e.target.value === "true")
       }
     >
       <option value="">Sin dato</option>
@@ -1171,6 +1435,69 @@ function boolLabel(value: boolean | null | undefined): string {
   return value === true ? "Al día" : value === false ? "No al día" : "Sin dato";
 }
 
+/**
+ * Texto explicativo de un nivel de confianza — reemplaza al headline que antes
+ * se repetía en cada card (ver ReviewCard). No distingue si la fila además
+ * tiene un `suggestedChild`: ese dato ya se ve aparte, en el panel "Niño ya
+ * existente en el sistema" dentro de la card.
+ */
+function partialMatchHeadline(confidence: number): string {
+  if (confidence >= 100) {
+    return "Coincidencia exacta — DNI, nombre, apellido y fecha de nacimiento coinciden. De todos modos necesita tu aprobación explícita para crear o vincular el registro: ningún niño se da de alta solo.";
+  }
+  if (confidence === 70) {
+    return "El DNI coincide con la contraparte, pero el nombre es distinto — revisar si es la misma persona antes de confirmar.";
+  }
+  if (confidence === 75) {
+    return "Hay más de un candidato posible con el mismo nombre y fecha — revisar cuál corresponde.";
+  }
+  return "Posible coincidencia — diferencia de tildes o variante. Revisar antes de confirmar.";
+}
+
+function ConfidenceTab({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        border: `1px solid ${active ? "var(--color-primary)" : "var(--color-border)"}`,
+        background: active
+          ? "color-mix(in srgb, var(--color-primary) 10%, var(--color-bg))"
+          : "var(--color-bg)",
+        color: active ? "var(--color-primary)" : "var(--color-muted)",
+        borderRadius: "999px",
+        padding: "0.2rem 0.7rem",
+        fontSize: "0.8rem",
+        fontWeight: active ? 600 : 500,
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+      }}
+    >
+      {label}
+      <span
+        style={{
+          fontSize: "0.7rem",
+          opacity: 0.8,
+        }}
+      >
+        ({count})
+      </span>
+    </button>
+  );
+}
+
 /** Colores del banner de confianza que encabeza cada tarjeta — grande y a simple vista. */
 function confidenceBanner(confidence?: number | null): {
   bg: string;
@@ -1244,6 +1571,7 @@ function DataPanel({
   lastName,
   nameFallback,
   birthDate,
+  birthDateIsPlaceholder = false,
   dni,
   fields = [],
   highlight = false,
@@ -1257,6 +1585,7 @@ function DataPanel({
   lastName?: string | null;
   nameFallback?: string | null;
   birthDate?: string | null;
+  birthDateIsPlaceholder?: boolean;
   dni?: string | null;
   fields?: { label: string; value: string }[];
   highlight?: boolean;
@@ -1398,6 +1727,18 @@ function DataPanel({
           <span style={{ color: "var(--color-danger)" }}>sin dato</span>
         )}
       </div>
+      {birthDateIsPlaceholder && (
+        <div
+          style={{
+            fontSize: "0.7rem",
+            color: "var(--color-warning)",
+            marginTop: 2,
+          }}
+        >
+          ⚠ Fecha genérica — el archivo no traía este dato, se completó con
+          1/1/2000. Corregila editando el niño.
+        </div>
+      )}
       <div
         style={{ fontSize: "0.9rem", color: "var(--color-text)", marginTop: 2 }}
       >

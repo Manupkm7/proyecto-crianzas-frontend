@@ -7,9 +7,10 @@ import type {
   ImportRow,
   ImportRowOverrides,
   ImportSheetAssignment,
+  ResolveRowResponse,
 } from '../types'
 
-export const getImports = (params: { page?: number } = {}) =>
+export const getImports = (params: { page?: number; search?: string } = {}) =>
   api.get<ApiListResponse<ImportBatch>>('/imports', { params })
 
 export const getImport = (id: string) =>
@@ -52,8 +53,14 @@ export const downloadImportTemplate = (
 
 export const getImportRows = (
   batchId: string,
-  params: { status?: string; page?: number } = {},
+  params: { status?: string; page?: number; confidence?: number } = {},
 ) => api.get<ApiListResponse<ImportRow>>(`/imports/${batchId}/rows`, { params })
+
+/** Conteo por % de confianza de las filas 'partial_match' del batch entero (no solo la página actual). */
+export const getImportConfidenceSummary = (batchId: string) =>
+  api.get<{ data: { confidence: number; count: number }[] }>(
+    `/imports/${batchId}/rows/confidence-summary`,
+  )
 
 export const resolveImportRow = (
   batchId: string,
@@ -64,7 +71,7 @@ export const resolveImportRow = (
     data_source?: 'row' | 'matched_row'
     overrides?: ImportRowOverrides
   },
-) => api.patch(`/imports/${batchId}/rows/${rowId}/resolve`, data)
+) => api.patch<ResolveRowResponse>(`/imports/${batchId}/rows/${rowId}/resolve`, data)
 
 /** Crea un niño nuevo por cada fila 'no_match' del lote — para cuando no hay ninguna hoja con la que comparar. */
 export const bulkResolveNoMatch = (batchId: string) =>

@@ -4,6 +4,7 @@ import { useRolesQuery, useCreateRoleMutation, useUpdateRolePermissionsMutation,
 import { useUsersQuery, useUserQuery } from '../hooks/useUsers'
 import { Button } from '../components/Button'
 import { PageHeader } from '../components/PageHeader'
+import { Spinner } from '../components/Spinner'
 import type { ApiErrorBody } from '../types/index'
 import styles from './css/roles.module.css'
 
@@ -309,7 +310,10 @@ function RolesTab({
       )}
 
       {loading ? (
-        <p className="text-muted">Cargando roles…</p>
+        <div className="text-muted" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '1.5rem 0' }}>
+          <Spinner size={20} />
+          Cargando roles…
+        </div>
       ) : (
         <div className={styles.roleGrid}>
           {roles.map((role) => (
@@ -390,7 +394,10 @@ function PermissionsTab({
       {deleteError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{deleteError}</div>}
 
       {loading ? (
-        <p className="text-muted">Cargando permisos…</p>
+        <div className="text-muted" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '1.5rem 0' }}>
+          <Spinner size={20} />
+          Cargando permisos…
+        </div>
       ) : (
         <table className={styles.permTable}>
           <thead>
@@ -507,7 +514,10 @@ function UserPermissionsTab({ allPermissionNames }: { allPermissionNames: string
 
       {selectedUserId && (
         loadingUser ? (
-          <p className="text-muted">Cargando datos del usuario…</p>
+          <div className="text-muted" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '1rem 0' }}>
+            <Spinner size={18} />
+            Cargando datos del usuario…
+          </div>
         ) : selectedUser ? (
           <div className={styles.userPermPanel}>
             <p className={styles.userPermName}>{selectedUser.name}</p>

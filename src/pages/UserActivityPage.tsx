@@ -1,5 +1,6 @@
 import { useParams, Link } from "react-router-dom";
 import { useUserQuery, useUserActivityQuery } from "../hooks/useUsers";
+import { Spinner } from "../components/Spinner";
 import type { ActivityLog } from "../types";
 
 /**
@@ -34,7 +35,15 @@ export default function UserActivityPage() {
   }
 
   if (loading) {
-    return <p className="text-muted">Cargando…</p>;
+    return (
+      <div
+        className="text-muted"
+        style={{ display: "flex", alignItems: "center", gap: 10, padding: "2rem 0" }}
+      >
+        <Spinner size={20} />
+        Cargando…
+      </div>
+    );
   }
 
   if (error) {

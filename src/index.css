@@ -267,6 +267,19 @@ code {
   background: #f1f5f9;
   color: #64748b;
 }
+.badge-amber {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* ---- Toolbar / búsqueda ---- */
 .toolbar {

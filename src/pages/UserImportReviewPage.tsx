@@ -6,6 +6,7 @@ import {
   useResolveUserImportRowMutation,
 } from '../hooks/useUserImports'
 import type { UserImportReviewReason, UserImportRow } from '../types'
+import { Spinner } from '../components/Spinner'
 
 type StatusFilter = 'needs_review' | 'created' | 'skipped' | 'error'
 
@@ -40,7 +41,16 @@ export default function UserImportReviewPage() {
 
   const rows = rowsData?.items ?? []
 
-  if (batchLoading) return <p className="text-muted">Cargando…</p>
+  if (batchLoading)
+    return (
+      <div
+        className="text-muted"
+        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '2rem 0' }}
+      >
+        <Spinner size={20} />
+        Cargando…
+      </div>
+    )
   if (!batch) return <p>Importación no encontrada.</p>
 
   const isProcessing = batch.status === 'processing' || batch.status === 'pending'
@@ -122,7 +132,15 @@ export default function UserImportReviewPage() {
         })}
       </div>
 
-      {rowsLoading && <p className="text-muted">Cargando filas…</p>}
+      {rowsLoading && (
+        <div
+          className="text-muted"
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '1.5rem 0' }}
+        >
+          <Spinner size={20} />
+          Cargando filas…
+        </div>
+      )}
 
       {!rowsLoading && rows.length === 0 && (
         <div className="empty-state">

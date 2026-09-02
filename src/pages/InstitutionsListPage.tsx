@@ -171,6 +171,7 @@ export default function InstitutionsListPage() {
         columns={columns}
         data={filtered}
         rowKey={(inst) => inst.id}
+        loading={loading}
         empty={
           <EmptyState
             icon={<IconBuilding size={26} />}

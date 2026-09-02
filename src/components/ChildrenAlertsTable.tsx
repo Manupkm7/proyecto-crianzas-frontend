@@ -197,7 +197,8 @@ export function ChildrenAlertsTable({ levelInstitution }: ChildrenAlertsTablePro
         columns={columns}
         data={children}
         rowKey={(c) => c.id}
-        empty={isLoading ? 'Cargando…' : 'No hay niños que coincidan con los filtros.'}
+        loading={isLoading}
+        empty="No hay niños que coincidan con los filtros."
       />
 
       <div className={styles.footer}>

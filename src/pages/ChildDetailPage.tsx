@@ -93,6 +93,30 @@ function formatDate(s: string | null | undefined) {
   return `${d}/${m}/${y}`
 }
 
+/**
+ * Fecha de nacimiento + aviso cuando es un placeholder (1/1/2000) puesto por una
+ * importación que no traía el dato real — ver ImportController::GENERIC_BIRTH_DATE
+ * y children.birth_date_is_placeholder en el backend.
+ */
+function birthDateValue(child: {
+  birth_date?: string | null
+  birth_date_is_placeholder?: boolean
+}): ReactNode {
+  const formatted = formatDate(child.birth_date)
+  if (!child.birth_date_is_placeholder) return formatted
+  return (
+    <span
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      title="El archivo importado no traía la fecha de nacimiento real; se completó con 1/1/2000. Verificar y corregir editando el niño."
+    >
+      {formatted}
+      <Badge tone="amber">
+        <IconAlert size={12} /> Fecha estimada, no estaba cargada en la importación
+      </Badge>
+    </span>
+  )
+}
+
 function formatObsDate(iso: string) {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
 }
@@ -1461,7 +1485,7 @@ export default function ChildDetailPage() {
               <div className={styles.dataList}>
                 <DataRow label="Nombre completo" value={fullName} />
                 <DataRow label="Edad" value={child.age != null ? `${child.age} años` : '—'} />
-                <DataRow label="Fecha de nacimiento" value={formatDate(child.birth_date)} />
+                <DataRow label="Fecha de nacimiento" value={birthDateValue(child)} />
                 <DataRow label="DNI" value={child.dni ?? '—'} />
               </div>
             </Card>
@@ -1563,6 +1587,11 @@ export default function ChildDetailPage() {
               {child.age != null && <span>{child.age} años</span>}
               {child.age != null && <span className={styles.metaDot}>·</span>}
               <span>Nacido/a el {formatDate(child.birth_date)}</span>
+              {child.birth_date_is_placeholder && (
+                <Badge tone="amber" title="El archivo importado no traía este dato; se completó con 1/1/2000. Verificar y corregir.">
+                  <IconAlert size={12} /> Fecha estimada, no estaba cargada en la importación
+                </Badge>
+              )}
               {institutionName && <Badge tone="edu">{institutionName}</Badge>}
               {child.has_alert && (
                 <Badge tone="amber">
@@ -1593,7 +1622,7 @@ export default function ChildDetailPage() {
             <div className={styles.dataList}>
               <DataRow label="DNI" value={child.dni ?? '—'} />
               <DataRow label="Edad" value={child.age != null ? `${child.age} años` : '—'} />
-              <DataRow label="Nacimiento" value={formatDate(child.birth_date)} />
+              <DataRow label="Nacimiento" value={birthDateValue(child)} />
               <DataRow label="Domicilio" value={child.birth_record?.address ?? '—'} />
             </div>
           </Card>

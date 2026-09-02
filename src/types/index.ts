@@ -263,6 +263,8 @@ export interface Child {
   first_name: string
   last_name: string
   birth_date: string
+  /** true si birth_date es un placeholder (1/1/2000) puesto por una importación que no traía el dato real. */
+  birth_date_is_placeholder?: boolean
   age?: number
   dni?: string | null
   notes?: string | null
@@ -339,6 +341,8 @@ export interface ImportBatch {
   status: ImportBatchStatus
   original_filename: string
   sheet_name?: string | null
+  /** Compartido entre todos los batches del mismo archivo subido — para agruparlos. */
+  storage_path: string
   rows: {
     total: number
     matched: number
@@ -390,6 +394,7 @@ export interface SuggestedChild {
   first_name?: string | null
   last_name?: string | null
   birth_date?: string | null
+  birth_date_is_placeholder?: boolean
   dni?: string | null
 }
 
@@ -446,6 +451,12 @@ export interface ImportRow {
   child?: Child | null
   resolved_by?: { user_id: string; resolved_at: string } | null
   error_message?: string | null
+}
+
+/** Body de PATCH /imports/{batch}/rows/{row}/resolve (ver ImportController::resolveRow). */
+export interface ResolveRowResponse {
+  message: string
+  row: ImportRow
 }
 
 // ─── Carga masiva de usuarios (institución / representante) ──────────────────

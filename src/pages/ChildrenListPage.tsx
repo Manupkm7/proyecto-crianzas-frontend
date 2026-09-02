@@ -60,7 +60,19 @@ export default function ChildrenListPage() {
     {
       key: "age",
       header: "Edad",
-      render: (c) => (c.age != null ? `${c.age} años` : "—"),
+      render: (c) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {c.age != null ? `${c.age} años` : "—"}
+          {c.birth_date_is_placeholder && (
+            <span
+              className="badge badge-amber"
+              title="Fecha de nacimiento estimada (1/1/2000) — el archivo importado no traía este dato. Verificar y corregir."
+            >
+              ⚠ Estimada
+            </span>
+          )}
+        </span>
+      ),
     },
     {
       key: "education",
@@ -144,6 +156,7 @@ export default function ChildrenListPage() {
         columns={columns}
         data={children}
         rowKey={(c) => c.id}
+        loading={loading}
         empty={
           <EmptyState
             icon={<IconChildren size={26} />}

@@ -169,6 +169,7 @@ export default function UsersListPage() {
         columns={columns}
         data={filtered}
         rowKey={(u) => u.id}
+        loading={loading}
         empty={
           <EmptyState
             icon={<IconUsers size={26} />}

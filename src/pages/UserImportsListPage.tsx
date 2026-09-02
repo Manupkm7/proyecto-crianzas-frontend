@@ -5,6 +5,7 @@ import { useInstitutionsQuery } from '../hooks/useInstitutions'
 import { useAuth } from '../context/AuthContext'
 import { downloadUserImportTemplate } from '../api/userImports'
 import { IconUpload } from '../components/icons'
+import { Spinner } from '../components/Spinner'
 import type { UserImportBatch, UserImportBatchStatus } from '../types'
 
 type TemplateFormat = 'xlsx' | 'csv' | 'txt'
@@ -56,7 +57,15 @@ export default function UserImportsListPage() {
 
       <UploadPanel />
 
-      {isLoading && <p className="text-muted">Cargando…</p>}
+      {isLoading && (
+        <div
+          className="text-muted"
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '2rem 0' }}
+        >
+          <Spinner size={20} />
+          Cargando…
+        </div>
+      )}
 
       {!isLoading && batches.length === 0 && (
         <div className="empty-state">

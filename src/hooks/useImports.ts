@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   bulkResolveNoMatch,
   getImport,
+  getImportConfidenceSummary,
   getImportRows,
   getImports,
   getImportSiblings,
@@ -14,11 +15,11 @@ import {
 import { queryKeys } from '../api/queryKeys'
 import type { ImportBatch, ImportRow, ImportRowOverrides, ImportSheetAssignment } from '../types'
 
-export function useImportsQuery(page = 1) {
+export function useImportsQuery(page = 1, search?: string) {
   return useQuery({
-    queryKey: [...queryKeys.imports.all, page],
+    queryKey: [...queryKeys.imports.all, page, search],
     queryFn: async () => {
-      const { data } = await getImports({ page })
+      const { data } = await getImports({ page, search: search || undefined })
       return {
         items: data.data as ImportBatch[],
         total: data.meta?.total ?? data.data.length,
@@ -49,11 +50,12 @@ export function useImportRowsQuery(
   batchId: string | undefined,
   status?: string,
   page = 1,
+  confidence?: number,
 ) {
   return useQuery({
-    queryKey: [...queryKeys.imports.rows(batchId ?? '', status), page],
+    queryKey: [...queryKeys.imports.rows(batchId ?? '', status), page, confidence],
     queryFn: async () => {
-      const { data } = await getImportRows(batchId as string, { status, page })
+      const { data } = await getImportRows(batchId as string, { status, page, confidence })
       return {
         items: data.data as ImportRow[],
         total: data.meta?.total ?? data.data.length,
@@ -62,6 +64,18 @@ export function useImportRowsQuery(
       }
     },
     enabled: Boolean(batchId),
+  })
+}
+
+/** Conteo por % de confianza de las filas 'partial_match' del batch entero, para las sub-tabs de confianza. */
+export function useImportConfidenceSummaryQuery(batchId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: [...queryKeys.imports.rows(batchId ?? '', 'partial_match'), 'confidence-summary'],
+    queryFn: async () => {
+      const { data } = await getImportConfidenceSummary(batchId as string)
+      return data.data
+    },
+    enabled: Boolean(batchId) && enabled,
   })
 }
 

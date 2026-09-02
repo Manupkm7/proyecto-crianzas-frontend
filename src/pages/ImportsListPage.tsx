@@ -1,9 +1,12 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { usePreviewImportMutation, useImportsQuery, useSubmitImportSheetsMutation } from '../hooks/useImports'
 import { useInstitutionOptions } from '../hooks/useInstitutionOptions'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { downloadImportTemplate } from '../api/imports'
-import { IconUpload } from '../components/icons'
+import { SearchInput } from '../components/SearchInput'
+import { Spinner } from '../components/Spinner'
+import { IconRefresh, IconUpload } from '../components/icons'
 import type { ImportBatch, ImportBatchStatus, ImportSheetAssignment, ImportSource } from '../types'
 
 type TemplateFormat = 'xlsx' | 'csv' | 'txt'
@@ -46,8 +49,18 @@ function formatDate(iso: string) {
 
 export default function ImportsListPage() {
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useImportsQuery(page)
+  const [searchInput, setSearchInput] = useState('')
+  const search = useDebouncedValue(searchInput)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search])
+
+  const { data, isLoading, isFetching, refetch } = useImportsQuery(page, search)
   const batches = data?.items ?? []
+  // Varias hojas del mismo archivo comparten storage_path — se agrupan para no
+  // repetir el nombre del archivo fila tras fila cuando trae muchas hojas.
+  const groups = groupBatchesByFile(batches)
 
   return (
     <>
@@ -57,17 +70,65 @@ export default function ImportsListPage() {
 
       <UploadPanel />
 
-      {isLoading && <p className="text-muted">Cargando…</p>}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          marginTop: '1.5rem',
+          marginBottom: '0.75rem',
+        }}
+      >
+        <SearchInput
+          placeholder="Buscar por archivo o por hoja…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+        />
+        <button
+          type="button"
+          className="btn btn-sm btn-secondary"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          title="Actualizar la lista sin recargar toda la página"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            marginLeft: 'auto',
+            flexShrink: 0,
+          }}
+        >
+          <IconRefresh
+            size={15}
+            style={isFetching ? { animation: 'spin 0.8s linear infinite' } : undefined}
+          />
+          {isFetching ? 'Actualizando…' : 'Actualizar'}
+        </button>
+      </div>
+
+      {isLoading && (
+        <div
+          className="text-muted"
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '2rem 0' }}
+        >
+          <Spinner size={20} />
+          Cargando…
+        </div>
+      )}
 
       {!isLoading && batches.length === 0 && (
         <div className="empty-state">
-          <p>Todavía no se importó ningún archivo.</p>
+          <p>
+            {search
+              ? 'No se encontraron importaciones para esa búsqueda.'
+              : 'Todavía no se importó ningún archivo.'}
+          </p>
         </div>
       )}
 
       {batches.length > 0 && (
         <>
-          <table className="table" style={{ marginTop: '1.5rem' }}>
+          <table className="table">
             <thead>
               <tr>
                 <th>Fuente</th>
@@ -82,8 +143,8 @@ export default function ImportsListPage() {
               </tr>
             </thead>
             <tbody>
-              {batches.map((b) => (
-                <BatchRow key={b.id} batch={b} />
+              {groups.map((group) => (
+                <FileGroup key={group.key} group={group} />
               ))}
             </tbody>
           </table>
@@ -115,7 +176,64 @@ export default function ImportsListPage() {
   )
 }
 
-function BatchRow({ batch }: { batch: ImportBatch }) {
+interface FileGroupData {
+  key: string
+  original_filename: string
+  batches: ImportBatch[]
+}
+
+/** Agrupa los batches que vienen del mismo archivo subido (comparten storage_path). */
+function groupBatchesByFile(batches: ImportBatch[]): FileGroupData[] {
+  const order: string[] = []
+  const map = new Map<string, ImportBatch[]>()
+  for (const b of batches) {
+    if (!map.has(b.storage_path)) {
+      map.set(b.storage_path, [])
+      order.push(b.storage_path)
+    }
+    map.get(b.storage_path)!.push(b)
+  }
+  return order.map((key) => ({
+    key,
+    original_filename: map.get(key)![0].original_filename,
+    batches: map.get(key)!,
+  }))
+}
+
+/**
+ * Una fila de tabla si el archivo trajo una sola hoja (caso común), o un
+ * encabezado + una fila por hoja si trajo varias — para no repetir el nombre
+ * del archivo y no hacer tediosa la lista con archivos de muchas hojas.
+ */
+function FileGroup({ group }: { group: FileGroupData }) {
+  if (group.batches.length === 1) {
+    return <BatchRow batch={group.batches[0]} />
+  }
+
+  return (
+    <>
+      <tr>
+        <td
+          colSpan={9}
+          style={{
+            background: 'var(--color-bg)',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            padding: '0.5rem 0.75rem',
+            color: 'var(--color-muted)',
+          }}
+        >
+          📄 {group.original_filename} — {group.batches.length} hojas
+        </td>
+      </tr>
+      {group.batches.map((b) => (
+        <BatchRow key={b.id} batch={b} hideFilename />
+      ))}
+    </>
+  )
+}
+
+function BatchRow({ batch, hideFilename = false }: { batch: ImportBatch; hideFilename?: boolean }) {
   const hasPendingReview = batch.rows.pending_review > 0
   const isActive = batch.status === 'processing' || batch.status === 'pending'
 
@@ -127,11 +245,17 @@ function BatchRow({ batch }: { batch: ImportBatch }) {
         </span>
       </td>
       <td style={{ fontSize: '0.875rem' }}>
-        {batch.original_filename}
-        {batch.sheet_name && (
-          <span className="text-muted" style={{ display: 'block', fontSize: '0.8rem' }}>
-            Hoja: {batch.sheet_name}
-          </span>
+        {hideFilename ? (
+          batch.sheet_name && <span>Hoja: {batch.sheet_name}</span>
+        ) : (
+          <>
+            {batch.original_filename}
+            {batch.sheet_name && (
+              <span className="text-muted" style={{ display: 'block', fontSize: '0.8rem' }}>
+                Hoja: {batch.sheet_name}
+              </span>
+            )}
+          </>
         )}
         {batch.institution && (
           <span className="text-muted" style={{ display: 'block', fontSize: '0.8rem' }}>

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Spinner } from './Spinner'
 import styles from './css/Table.module.css'
 
 type Align = 'left' | 'right' | 'center'
@@ -24,6 +25,8 @@ interface TableProps<T> {
   rowKey: (row: T) => string
   empty?: ReactNode
   pagination?: TablePagination
+  /** Mientras carga y todavía no hay datos, muestra un spinner en vez del estado vacío. */
+  loading?: boolean
 }
 
 const alignClass: Record<Align, string> = {
@@ -32,7 +35,7 @@ const alignClass: Record<Align, string> = {
   center: styles.alignCenter,
 }
 
-export function Table<T>({ columns, data, rowKey, empty, pagination }: TableProps<T>) {
+export function Table<T>({ columns, data, rowKey, empty, pagination, loading }: TableProps<T>) {
   return (
     <div className={styles.wrap}>
       <div className={styles.scroll}>
@@ -51,7 +54,16 @@ export function Table<T>({ columns, data, rowKey, empty, pagination }: TableProp
             </tr>
           </thead>
           <tbody>
-            {data.length === 0 ? (
+            {loading && data.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className={styles.empty}>
+                  <div className={styles.loadingRow}>
+                    <Spinner size={22} />
+                    <span>Cargando…</span>
+                  </div>
+                </td>
+              </tr>
+            ) : data.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className={styles.empty}>
                   {empty}
