@@ -6,7 +6,7 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { downloadImportTemplate } from '../api/imports'
 import { SearchInput } from '../components/SearchInput'
 import { Spinner } from '../components/Spinner'
-import { IconRefresh, IconUpload } from '../components/icons'
+import { IconChevronRight, IconRefresh, IconUpload } from '../components/icons'
 import type { ImportBatch, ImportBatchStatus, ImportSheetAssignment, ImportSource } from '../types'
 
 type TemplateFormat = 'xlsx' | 'csv' | 'txt'
@@ -202,10 +202,13 @@ function groupBatchesByFile(batches: ImportBatch[]): FileGroupData[] {
 
 /**
  * Una fila de tabla si el archivo trajo una sola hoja (caso común), o un
- * encabezado + una fila por hoja si trajo varias — para no repetir el nombre
- * del archivo y no hacer tediosa la lista con archivos de muchas hojas.
+ * encabezado plegable + una fila por hoja si trajo varias — para no repetir
+ * el nombre del archivo y poder colapsar los archivos con muchas hojas y así
+ * reducir el alto de la tabla.
  */
 function FileGroup({ group }: { group: FileGroupData }) {
+  const [expanded, setExpanded] = useState(true)
+
   if (group.batches.length === 1) {
     return <BatchRow batch={group.batches[0]} />
   }
@@ -213,22 +216,39 @@ function FileGroup({ group }: { group: FileGroupData }) {
   return (
     <>
       <tr>
-        <td
-          colSpan={9}
-          style={{
-            background: 'var(--color-bg)',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            padding: '0.5rem 0.75rem',
-            color: 'var(--color-muted)',
-          }}
-        >
-          📄 {group.original_filename} — {group.batches.length} hojas
+        <td colSpan={9} style={{ padding: 0 }}>
+          <button
+            type="button"
+            onClick={() => setExpanded((e) => !e)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              width: '100%',
+              background: 'var(--color-bg)',
+              border: 'none',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              padding: '0.5rem 0.75rem',
+              color: 'var(--color-muted)',
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            <IconChevronRight
+              size={13}
+              style={{
+                transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                transition: 'transform 0.15s ease',
+                flexShrink: 0,
+              }}
+            />
+            📄 {group.original_filename} — {group.batches.length} hojas
+          </button>
         </td>
       </tr>
-      {group.batches.map((b) => (
-        <BatchRow key={b.id} batch={b} hideFilename />
-      ))}
+      {expanded &&
+        group.batches.map((b) => <BatchRow key={b.id} batch={b} hideFilename />)}
     </>
   )
 }
