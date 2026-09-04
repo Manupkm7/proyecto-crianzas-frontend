@@ -41,6 +41,18 @@ interface Action {
   primary?: boolean;
 }
 
+// Igual convención que ChildDetailPage: bimestres 1 a 5, valor "AÑO-BIMESTRE".
+function getExportBimestreOptions() {
+  const y = new Date().getFullYear();
+  const result: { value: string; label: string }[] = [];
+  for (const year of [y + 1, y, y - 1]) {
+    for (let b = 5; b >= 1; b--) {
+      result.push({ value: `${year}-${b}`, label: `Año ${year} · Bimestre ${b}` });
+    }
+  }
+  return result;
+}
+
 function getHeroDescription(
   role: string | undefined,
   institutionName: string | undefined,
@@ -118,12 +130,44 @@ export default function DashboardPage() {
     exportDepartmentId || undefined,
   );
 
+  // Filtro por tiempo, mutuamente excluyente: sin filtro, rango de fechas, o bimestre.
+  const [exportTimeMode, setExportTimeMode] = useState<"none" | "range" | "period">(
+    "none",
+  );
+  const [exportDateFrom, setExportDateFrom] = useState("");
+  const [exportDateTo, setExportDateTo] = useState("");
+  const [exportPeriod, setExportPeriod] = useState(""); // "AAAA-B"
+
+  const dateRangeInvalid =
+    exportTimeMode === "range" &&
+    !!exportDateFrom &&
+    !!exportDateTo &&
+    exportDateTo < exportDateFrom;
+
   // Descarga autenticada del ZIP: axios trae el archivo como blob (no navegación
   // por <a href>, porque el token va en el header Authorization, no en cookies).
   async function handleDatabaseExport() {
     setExportError(null);
+
+    if (exportTimeMode === "range" && (!exportDateFrom || !exportDateTo)) {
+      setExportError("Elegí fecha desde y fecha hasta.");
+      return;
+    }
+    if (dateRangeInvalid) {
+      setExportError("La fecha hasta no puede ser anterior a la fecha desde.");
+      return;
+    }
+    if (exportTimeMode === "period" && !exportPeriod) {
+      setExportError("Elegí un bimestre.");
+      return;
+    }
+
     setExporting(true);
     try {
+      const [periodYear, periodBimester] = exportPeriod
+        ? exportPeriod.split("-").map(Number)
+        : [undefined, undefined];
+
       const response = await downloadDatabaseExport({
         // Solo se manda el nivel más específico elegido — el backend resuelve
         // las instituciones a partir de ese único filtro (ver DatabaseExportController).
@@ -133,6 +177,12 @@ export default function DashboardPage() {
           ? { department_id: exportDepartmentId }
           : exportProvinceId
           ? { province_id: exportProvinceId }
+          : {}),
+        ...(exportTimeMode === "range"
+          ? { date_from: exportDateFrom, date_to: exportDateTo }
+          : {}),
+        ...(exportTimeMode === "period" && periodYear && periodBimester
+          ? { period_year: periodYear, period_bimester: periodBimester }
           : {}),
       });
       const disposition = response.headers["content-disposition"] as
@@ -398,6 +448,71 @@ export default function DashboardPage() {
                     </select>
                   </div>
 
+                  <p
+                    className={styles.actionText}
+                    style={{ marginTop: 10, marginBottom: 4, fontSize: "0.8rem" }}
+                  >
+                    Filtro por tiempo (opcional)
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <select
+                      aria-label="Método de filtro por tiempo"
+                      value={exportTimeMode}
+                      onChange={(e) => {
+                        setExportTimeMode(e.target.value as "none" | "range" | "period");
+                        setExportDateFrom("");
+                        setExportDateTo("");
+                        setExportPeriod("");
+                      }}
+                      style={{ fontSize: "0.85rem", padding: "4px 6px" }}
+                    >
+                      <option value="none">Sin filtro (todo el histórico)</option>
+                      <option value="range">Rango de fechas (creado y/o actualizado)</option>
+                      <option value="period">Bimestre</option>
+                    </select>
+
+                    {exportTimeMode === "range" && (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input
+                          type="date"
+                          aria-label="Fecha desde"
+                          value={exportDateFrom}
+                          onChange={(e) => setExportDateFrom(e.target.value)}
+                          style={{ fontSize: "0.85rem", padding: "4px 6px", flex: 1 }}
+                        />
+                        <input
+                          type="date"
+                          aria-label="Fecha hasta"
+                          value={exportDateTo}
+                          min={exportDateFrom || undefined}
+                          onChange={(e) => setExportDateTo(e.target.value)}
+                          style={{ fontSize: "0.85rem", padding: "4px 6px", flex: 1 }}
+                        />
+                      </div>
+                    )}
+                    {dateRangeInvalid && (
+                      <p style={{ color: "var(--danger)", fontSize: "0.78rem", margin: 0 }}>
+                        La fecha hasta no puede ser anterior a la fecha desde.
+                      </p>
+                    )}
+
+                    {exportTimeMode === "period" && (
+                      <select
+                        aria-label="Bimestre"
+                        value={exportPeriod}
+                        onChange={(e) => setExportPeriod(e.target.value)}
+                        style={{ fontSize: "0.85rem", padding: "4px 6px" }}
+                      >
+                        <option value="">Elegí un bimestre</option>
+                        {getExportBimestreOptions().map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
                   {exportError && (
                     <div className="alert alert-error" style={{ marginTop: 8 }}>
                       {exportError}
@@ -409,7 +524,7 @@ export default function DashboardPage() {
                       variant="secondary"
                       size="sm"
                       onClick={handleDatabaseExport}
-                      disabled={exporting}
+                      disabled={exporting || dateRangeInvalid}
                     >
                       {exporting ? "Generando…" : "Descargar ZIP"}
                       <IconChevronRight size={16} />
