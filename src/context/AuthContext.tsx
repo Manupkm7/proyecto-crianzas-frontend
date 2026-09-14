@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import { useMutation } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import api from '../api/client'
+import { queryClient } from '../api/queryClient'
 import type { ApiErrorBody, AuthUser, InstitutionType } from '../types'
 
 interface AuthContextValue {
@@ -67,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return data
     },
     onSuccess: (data) => {
+      // Limpia cualquier dato cacheado de una sesión anterior (otro rol/institución)
+      // antes de guardar la nueva sesión, para que la UI no muestre datos ajenos.
+      queryClient.clear()
       localStorage.setItem('auth_token', data.token)
       localStorage.setItem('auth_user', JSON.stringify(data.user))
       setUser(data.user)
@@ -90,6 +94,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (data) => {
       const user = institutionToAuthUser(data)
+      // Limpia cualquier dato cacheado de una sesión anterior (otro rol/institución)
+      // antes de guardar la nueva sesión, para que la UI no muestre datos ajenos.
+      queryClient.clear()
       localStorage.setItem('auth_token', data.token)
       localStorage.setItem('auth_user', JSON.stringify(user))
       setUser(user)
@@ -110,6 +117,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('auth_token')
       localStorage.removeItem('auth_user')
       setUser(null)
+      // Borra el cache de React Query: sin esto, la próxima sesión (otro rol/institución)
+      // seguía viendo los datos cacheados de la sesión anterior hasta hacer F5.
+      queryClient.clear()
     },
   })
 

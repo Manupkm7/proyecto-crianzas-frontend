@@ -370,10 +370,16 @@ export interface ImportPreviewResponse {
   sheets: ImportSheetPreview[]
 }
 
-export interface ImportSheetAssignment {
+/** Forma que espera el backend al confirmar el envío (POST /imports) — una entrada por hoja incluida. */
+export interface ImportSheetSubmission {
   sheet_name: string | null
   source: ImportSource
   institution_id?: string | null
+}
+
+export interface ImportSheetAssignment extends ImportSheetSubmission {
+  /** Estado de UI: si está en false, la hoja se descarta y no se envía al backend. */
+  included: boolean
 }
 
 export interface ImportRowMatch {

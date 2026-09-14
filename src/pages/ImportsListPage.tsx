@@ -437,6 +437,7 @@ function UploadPanel() {
         sheet_name: s.sheet_name,
         source: "civil_registry",
         institution_id: undefined,
+        included: true,
       })),
     );
   }
@@ -466,6 +467,8 @@ function UploadPanel() {
     if (fileRef.current) fileRef.current.value = "";
   }
 
+  const includedAssignments = assignments.filter((a) => a.included);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!storagePath || !originalFilename) return;
@@ -473,15 +476,23 @@ function UploadPanel() {
     await submitSheets({
       storage_path: storagePath,
       original_filename: originalFilename,
-      sheets: assignments,
+      // Solo se envían las hojas que el operador dejó marcadas — las
+      // descartadas ni siquiera generan un ImportBatch.
+      sheets: includedAssignments.map(
+        ({ sheet_name, source, institution_id }) => ({
+          sheet_name,
+          source,
+          institution_id,
+        }),
+      ),
     });
     resetAll();
   }
 
   const canSubmit =
     storagePath !== null &&
-    assignments.length > 0 &&
-    assignments.every(
+    includedAssignments.length > 0 &&
+    includedAssignments.every(
       (a) => !INSTITUTION_TYPE_BY_SOURCE[a.source] || !!a.institution_id,
     );
 
@@ -622,7 +633,7 @@ function UploadPanel() {
               }}
             >
               {assignments.length > 1
-                ? `Se detectaron ${assignments.length} hojas — indicá la fuente e institución de cada una`
+                ? `Se detectaron ${assignments.length} hojas — desmarcá las que no necesitás e indicá la fuente e institución del resto`
                 : "Fuente del archivo"}
             </label>
             <div
@@ -637,10 +648,22 @@ function UploadPanel() {
                   key={index}
                   assignment={assignment}
                   showLabel={assignments.length > 1}
+                  allowDiscard={assignments.length > 1}
                   onChange={(patch) => updateAssignment(index, patch)}
                 />
               ))}
             </div>
+            {assignments.length > 1 && includedAssignments.length === 0 && (
+              <p
+                style={{
+                  margin: "0.5rem 0 0",
+                  color: "var(--color-danger)",
+                  fontSize: "0.8rem",
+                }}
+              >
+                Marcá al menos una hoja para poder procesar el archivo.
+              </p>
+            )}
           </div>
         )}
 
@@ -693,10 +716,12 @@ const INSTITUTION_TYPE_BY_SOURCE: Partial<
 function SheetAssignmentRow({
   assignment,
   showLabel,
+  allowDiscard,
   onChange,
 }: {
   assignment: ImportSheetAssignment;
   showLabel: boolean;
+  allowDiscard: boolean;
   onChange: (patch: Partial<ImportSheetAssignment>) => void;
 }) {
   const institutionType = INSTITUTION_TYPE_BY_SOURCE[assignment.source];
@@ -743,96 +768,146 @@ function SheetAssignmentRow({
         border: "1px solid var(--color-border)",
         borderRadius: "var(--radius)",
         padding: "0.75rem",
+        opacity: assignment.included ? 1 : 0.6,
+        background: assignment.included ? undefined : "var(--color-bg)",
       }}
     >
-      {showLabel && (
-        <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: 8 }}>
-          Hoja: {assignment.sheet_name ?? "Archivo completo"}
-        </div>
-      )}
-
-      <div
-        style={{
-          display: "flex",
-          gap: "1.5rem",
-          marginBottom: institutionType ? 10 : 0,
-        }}
-      >
-        {(["civil_registry", "education", "health"] as const).map((s) => (
-          <label
-            key={s}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              cursor: "pointer",
-              fontSize: "0.875rem",
-            }}
-          >
-            <input
-              type="radio"
-              name={`source-${assignment.sheet_name ?? "unica"}`}
-              value={s}
-              checked={assignment.source === s}
-              onChange={() =>
-                onChange({ source: s, institution_id: undefined })
-              }
-            />
-            {SOURCE_LABEL[s]}
-          </label>
-        ))}
-      </div>
-
-      {institutionType && (
-        <div style={{ marginBottom: 10 }}>
-          <select
-            className="search-input"
-            value={assignment.institution_id ?? ""}
-            onChange={(e) =>
-              onChange({ institution_id: e.target.value || undefined })
-            }
-            required
-            style={{ width: "100%", maxWidth: 360 }}
-          >
-            <option value="">
-              {institutionType === "salud"
-                ? "Seleccionar institución de salud…"
-                : "Seleccionar institución educativa…"}
-            </option>
-            {institutions.map((inst) => (
-              <option key={inst.id} value={inst.id}>
-                {inst.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-        {(["xlsx", "csv", "txt"] as const).map((format) => (
-          <button
-            key={format}
-            type="button"
-            className="btn btn-sm btn-secondary"
-            disabled={downloadingTemplate !== null}
-            onClick={() => handleDownloadTemplate(format)}
-          >
-            {downloadingTemplate === format
-              ? "Descargando…"
-              : `Plantilla ${TEMPLATE_FORMAT_LABEL[format]}`}
-          </button>
-        ))}
-      </div>
-      {templateError && (
-        <p
+      {(showLabel || allowDiscard) && (
+        <div
           style={{
-            margin: "6px 0 0",
-            color: "var(--color-danger)",
-            fontSize: "0.8rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            marginBottom: 8,
           }}
         >
-          {templateError}
+          {showLabel && (
+            <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>
+              Hoja: {assignment.sheet_name ?? "Archivo completo"}
+            </div>
+          )}
+          {allowDiscard && (
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                cursor: "pointer",
+                fontSize: "0.8rem",
+                color: "var(--color-muted)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={assignment.included}
+                onChange={(e) => onChange({ included: e.target.checked })}
+              />
+              Usar esta hoja
+            </label>
+          )}
+        </div>
+      )}
+
+      {!assignment.included && (
+        <p
+          style={{
+            margin: 0,
+            fontSize: "0.8rem",
+            color: "var(--color-muted)",
+          }}
+        >
+          Esta hoja no se va a procesar.
         </p>
+      )}
+
+      {assignment.included && (
+        <>
+          <div
+            style={{
+              display: "flex",
+              gap: "1.5rem",
+              marginBottom: institutionType ? 10 : 0,
+            }}
+          >
+            {(["civil_registry", "education", "health"] as const).map((s) => (
+              <label
+                key={s}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                }}
+              >
+                <input
+                  type="radio"
+                  name={`source-${assignment.sheet_name ?? "unica"}`}
+                  value={s}
+                  checked={assignment.source === s}
+                  onChange={() =>
+                    onChange({ source: s, institution_id: undefined })
+                  }
+                />
+                {SOURCE_LABEL[s]}
+              </label>
+            ))}
+          </div>
+
+          {institutionType && (
+            <div style={{ marginBottom: 10 }}>
+              <select
+                className="search-input"
+                value={assignment.institution_id ?? ""}
+                onChange={(e) =>
+                  onChange({ institution_id: e.target.value || undefined })
+                }
+                required
+                style={{ width: "100%", maxWidth: 360 }}
+              >
+                <option value="">
+                  {institutionType === "salud"
+                    ? "Seleccionar institución de salud…"
+                    : "Seleccionar institución educativa…"}
+                </option>
+                {institutions.map((inst) => (
+                  <option key={inst.id} value={inst.id}>
+                    {inst.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            {(["xlsx", "csv", "txt"] as const).map((format) => (
+              <button
+                key={format}
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={downloadingTemplate !== null}
+                onClick={() => handleDownloadTemplate(format)}
+              >
+                {downloadingTemplate === format
+                  ? "Descargando…"
+                  : `Plantilla ${TEMPLATE_FORMAT_LABEL[format]}`}
+              </button>
+            ))}
+          </div>
+          {templateError && (
+            <p
+              style={{
+                margin: "6px 0 0",
+                color: "var(--color-danger)",
+                fontSize: "0.8rem",
+              }}
+            >
+              {templateError}
+            </p>
+          )}
+        </>
       )}
     </div>
   );

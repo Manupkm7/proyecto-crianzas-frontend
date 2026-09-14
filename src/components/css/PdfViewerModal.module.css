@@ -1,0 +1,77 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(30, 24, 18, 0.55);
+}
+
+.card {
+  width: min(100%, 900px);
+  height: min(100%, 92vh);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(30, 24, 18, 0.28);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.filename {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.downloadLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+}
+.downloadLink:hover {
+  text-decoration: underline;
+}
+
+.frame {
+  flex: 1;
+  border: none;
+  width: 100%;
+  background: var(--surface-muted);
+}
+
+@media (max-width: 680px) {
+  .card {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+  .filename {
+    font-size: 13px;
+  }
+}

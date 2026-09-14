@@ -22,3 +22,14 @@ export const createEducationObservation = (childId: string, input: CreateEducati
     { headers: { 'Content-Type': 'multipart/form-data' } },
   )
 }
+
+/**
+ * Descarga el adjunto (PDF) de una observación. responseType 'blob' porque el
+ * endpoint requiere el token de Sanctum en el header Authorization (no en
+ * cookies) — no se puede navegar directo con un <a href> a la URL del backend,
+ * el navegador nunca mandaría el token y la petición se cae.
+ */
+export const getEducationObservationAttachment = (observationId: string) =>
+  api.get<Blob>(`/education-observations/${observationId}/attachment`, {
+    responseType: 'blob',
+  })

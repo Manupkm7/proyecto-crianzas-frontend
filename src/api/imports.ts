@@ -6,7 +6,7 @@ import type {
   ImportPreviewResponse,
   ImportRow,
   ImportRowOverrides,
-  ImportSheetAssignment,
+  ImportSheetSubmission,
   ResolveRowResponse,
 } from '../types'
 
@@ -34,7 +34,7 @@ export const previewImport = (formData: FormData) =>
 export const submitImportSheets = (data: {
   storage_path: string
   original_filename: string
-  sheets: ImportSheetAssignment[]
+  sheets: ImportSheetSubmission[]
 }) => api.post<ApiListResponse<ImportBatch>>('/imports', data)
 
 /**

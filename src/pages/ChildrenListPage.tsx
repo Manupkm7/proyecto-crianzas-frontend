@@ -14,15 +14,28 @@ import { Avatar } from "../components/Avatar";
 
 const PER_PAGE = 20;
 
+type InstitutionLocality = "" | "san_justo" | "uriburu";
+
+const INSTITUTION_LOCALITY_OPTIONS: {
+  value: InstitutionLocality;
+  label: string;
+}[] = [
+  { value: "", label: "Todas las instituciones" },
+  { value: "san_justo", label: "San Justo (Santa Fe)" },
+  { value: "uriburu", label: "Uriburu (La Pampa)" },
+];
+
 export default function ChildrenListPage() {
   const { user } = useAuth();
   const [searchInput, setSearchInput] = useState("");
+  const [institutionLocality, setInstitutionLocality] =
+    useState<InstitutionLocality>("");
   const [page, setPage] = useState(1);
   const search = useDebouncedValue(searchInput);
 
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [search, institutionLocality]);
 
   const {
     data,
@@ -30,6 +43,7 @@ export default function ChildrenListPage() {
     error: queryError,
   } = useChildrenQuery({
     search: search || undefined,
+    institution_locality: institutionLocality || undefined,
     page,
     per_page: PER_PAGE,
   });
@@ -136,11 +150,27 @@ export default function ChildrenListPage() {
       />
 
       <div className={list.toolbar}>
-        <SearchInput
-          placeholder="Buscar por nombre, apellido o DNI…"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-        />
+        <div className={list.selectDiv}>
+          <SearchInput
+            placeholder="Buscar por nombre, apellido o DNI…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
+          <select
+            aria-label="Filtrar por institución"
+            value={institutionLocality}
+            onChange={(e) =>
+              setInstitutionLocality(e.target.value as InstitutionLocality)
+            }
+            style={{ fontSize: "0.85rem", padding: "6px 8px" }}
+          >
+            {INSTITUTION_LOCALITY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <span className={list.count}>
           {loading ? "Cargando…" : `${total} ${total === 1 ? "niño" : "niños"}`}
         </span>

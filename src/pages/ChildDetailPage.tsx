@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ChangeEvent, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { useChildQuery } from '../hooks/useChildren'
+import { useChildQuery, useDeleteChildMutation } from '../hooks/useChildren'
 import {
   useEducationObservationsQuery,
   useCreateEducationObservationMutation,
@@ -10,6 +10,10 @@ import {
   useHealthObservationsQuery,
   useCreateHealthObservationMutation,
 } from '../hooks/useHealthObservations'
+import { getEducationObservationAttachment } from '../api/educationObservations'
+import { getHealthObservationAttachment } from '../api/healthObservations'
+import { useAttachmentViewer } from '../hooks/useAttachmentViewer'
+import { PdfViewerModal } from '../components/PdfViewerModal'
 import {
   useEducationPeriodReportsQuery,
   useSaveEducationPeriodReportMutation,
@@ -45,6 +49,7 @@ import {
   IconHeart,
   IconId,
   IconPlus,
+  IconTrash,
   IconUpload,
 } from '../components/icons'
 import type {
@@ -162,6 +167,7 @@ function DataRow({ label, value }: { label: string; value: ReactNode }) {
 function ObservacionesSection({ childId, canAdd }: { childId: string; canAdd: boolean }) {
   const { data: obs, isLoading } = useEducationObservationsQuery(childId)
   const mutation = useCreateEducationObservationMutation(childId)
+  const attachmentViewer = useAttachmentViewer()
 
   const [showForm, setShowForm] = useState(false)
   const [body, setBody] = useState('')
@@ -268,20 +274,37 @@ function ObservacionesSection({ childId, canAdd }: { childId: string; canAdd: bo
               )}
             </span>
             <p className={styles.obsBody}>{o.body}</p>
-            {o.has_attachment && o.attachment_url && (
-              <a
-                href={o.attachment_url}
-                target="_blank"
-                rel="noopener noreferrer"
+            {o.has_attachment && (
+              <button
+                type="button"
                 className={styles.obsAttachment}
+                disabled={attachmentViewer.loadingId === o.id}
+                onClick={() =>
+                  attachmentViewer.open(
+                    o.id,
+                    o.attachment_name ?? 'documento.pdf',
+                    getEducationObservationAttachment,
+                  )
+                }
               >
                 <IconDownload size={13} />
-                {o.attachment_name ?? 'Adjunto'}
-              </a>
+                {attachmentViewer.loadingId === o.id
+                  ? 'Abriendo...'
+                  : (o.attachment_name ?? 'Adjunto')}
+              </button>
             )}
           </div>
         ))}
       </div>
+
+      {attachmentViewer.error && <p className={styles.obsError}>{attachmentViewer.error}</p>}
+      {attachmentViewer.viewer && (
+        <PdfViewerModal
+          url={attachmentViewer.viewer.url}
+          filename={attachmentViewer.viewer.filename}
+          onClose={attachmentViewer.close}
+        />
+      )}
     </Card>
   )
 }
@@ -291,6 +314,7 @@ function ObservacionesSection({ childId, canAdd }: { childId: string; canAdd: bo
 function HealthObservationSection({ childId, canAdd }: { childId: string; canAdd: boolean }) {
   const { data: obs, isLoading } = useHealthObservationsQuery(childId)
   const mutation = useCreateHealthObservationMutation(childId)
+  const attachmentViewer = useAttachmentViewer()
 
   const [showForm, setShowForm] = useState(false)
   const [body, setBody] = useState('')
@@ -397,20 +421,37 @@ function HealthObservationSection({ childId, canAdd }: { childId: string; canAdd
               )}
             </span>
             <p className={styles.obsBody}>{o.body}</p>
-            {o.has_attachment && o.attachment_url && (
-              <a
-                href={o.attachment_url}
-                target="_blank"
-                rel="noopener noreferrer"
+            {o.has_attachment && (
+              <button
+                type="button"
                 className={styles.obsAttachment}
+                disabled={attachmentViewer.loadingId === o.id}
+                onClick={() =>
+                  attachmentViewer.open(
+                    o.id,
+                    o.attachment_name ?? 'documento.pdf',
+                    getHealthObservationAttachment,
+                  )
+                }
               >
                 <IconDownload size={13} />
-                {o.attachment_name ?? 'Adjunto'}
-              </a>
+                {attachmentViewer.loadingId === o.id
+                  ? 'Abriendo...'
+                  : (o.attachment_name ?? 'Adjunto')}
+              </button>
             )}
           </div>
         ))}
       </div>
+
+      {attachmentViewer.error && <p className={styles.obsError}>{attachmentViewer.error}</p>}
+      {attachmentViewer.viewer && (
+        <PdfViewerModal
+          url={attachmentViewer.viewer.url}
+          filename={attachmentViewer.viewer.filename}
+          onClose={attachmentViewer.close}
+        />
+      )}
     </Card>
   )
 }
@@ -1301,6 +1342,43 @@ function AlertsCard({
   )
 }
 
+// ── DeleteChildButton ─────────────────────────────────────────────────────────
+// Solo admin: da de baja (soft delete) el registro del niño. El backend nunca
+// borra físicamente — los registros de dominio (educación, salud, etc.) quedan
+// intactos para trazabilidad; el niño solo deja de listarse/buscarse.
+
+function DeleteChildButton({ childId, fullName }: { childId: string; fullName: string }) {
+  const navigate = useNavigate()
+  const mutation = useDeleteChildMutation()
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleDelete() {
+    if (
+      !window.confirm(
+        `¿Dar de baja a ${fullName}? El registro deja de listarse y buscarse, pero no se borra: los datos históricos (educación, salud, etc.) se conservan y un admin puede restaurarlo si hace falta.`,
+      )
+    )
+      return
+    setError(null)
+    try {
+      await mutation.mutateAsync(childId)
+      navigate('/children')
+    } catch (err) {
+      setError(errorMessage(err, 'No se pudo dar de baja al niño.'))
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+      <Button variant="danger" onClick={handleDelete} disabled={mutation.isPending}>
+        <IconTrash size={18} />
+        {mutation.isPending ? 'Dando de baja...' : 'Dar de baja'}
+      </Button>
+      {error && <p className={styles.obsError}>{error}</p>}
+    </div>
+  )
+}
+
 // ── ChildDetailPage ───────────────────────────────────────────────────────────
 
 export default function ChildDetailPage() {
@@ -1608,6 +1686,7 @@ export default function ChildDetailPage() {
               <IconEdit size={18} />
               Editar
             </Button>
+            <DeleteChildButton childId={id!} fullName={fullName} />
           </div>
         )}
       </div>
@@ -1752,7 +1831,13 @@ export default function ChildDetailPage() {
             canManage={isAdmin || isInstitucion}
           />
 
-          <ObservacionesSection childId={id!} canAdd={isAdmin} />
+          {/* Las observaciones son la bitácora de UN registro (education_record_id /
+              health_record_id son NOT NULL en la base) — sin el registro del sector
+              no hay dónde colgarlas, así que solo se ofrecen si existe. */}
+          {edu && <ObservacionesSection childId={id!} canAdd={isAdmin} />}
+          {child.health_record && (
+            <HealthObservationSection childId={id!} canAdd={isAdmin} />
+          )}
         </div>
       </div>
     </div>

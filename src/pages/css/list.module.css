@@ -92,3 +92,8 @@
   align-items: center;
   gap: 4px;
 }
+.selectDiv {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

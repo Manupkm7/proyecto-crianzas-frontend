@@ -13,7 +13,7 @@ import {
   submitImportSheets,
 } from '../api/imports'
 import { queryKeys } from '../api/queryKeys'
-import type { ImportBatch, ImportRow, ImportRowOverrides, ImportSheetAssignment } from '../types'
+import type { ImportBatch, ImportRow, ImportRowOverrides, ImportSheetSubmission } from '../types'
 
 export function useImportsQuery(page = 1, search?: string) {
   return useQuery({
@@ -90,7 +90,7 @@ export function usePreviewImportMutation() {
 export function useSubmitImportSheetsMutation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: { storage_path: string; original_filename: string; sheets: ImportSheetAssignment[] }) =>
+    mutationFn: (data: { storage_path: string; original_filename: string; sheets: ImportSheetSubmission[] }) =>
       submitImportSheets(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.imports.all })

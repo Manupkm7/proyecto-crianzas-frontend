@@ -20,6 +20,8 @@ export interface ChildrenQueryParams {
   /** Filtra por nivel/grado del registro educativo (dashboard de instituciones educativas). */
   level?: string
   grade?: number
+  /** Solo niños con registro (educativo o de salud) en alguna institución de esa localidad fija. */
+  institution_locality?: 'san_justo' | 'uriburu'
   page?: number
   per_page?: number
 }
