@@ -4,18 +4,12 @@ import { Card } from "../components/Card";
 import {
   IconAlert,
   IconBuilding,
-  IconChevronRight,
   IconChildren,
-  IconHeart,
-  IconPlus,
-  IconUsers,
   type IconProps,
 } from "../components/icons";
-import { Button } from "../components/Button";
 import { ChildServicesGrid } from "../components/ChildServicesGrid";
 import { EducationLevelDashboard } from "../components/EducationLevelDashboard";
 import { useChildrenQuery } from "../hooks/useChildren";
-import { useUsersQuery } from "../hooks/useUsers";
 import { useInstitutionsQuery } from "../hooks/useInstitutions";
 
 interface Stat {
@@ -24,17 +18,6 @@ interface Stat {
   icon: (props: IconProps) => JSX.Element;
   color: string;
   soft: string;
-}
-
-interface Action {
-  title: string;
-  text: string;
-  href: string;
-  cta: string;
-  icon: (props: IconProps) => JSX.Element;
-  color: string;
-  soft: string;
-  primary?: boolean;
 }
 
 function getHeroDescription(
@@ -81,12 +64,6 @@ export default function DashboardPage() {
   const institutionType = user?.institution?.type;
   const institutionName = user?.institution?.name;
 
-  const canManageUsers = isAdmin;
-  const canCreateChildren = !isCoordinador;
-  const canViewUsers = isAdmin || isCoordinador;
-  // Solo roles que tienen acceso a la sección de instituciones ven el acceso rápido
-  const canSeeInstitutions = isAdmin || isCoordinador || isInstitucion;
-
   // Las instituciones educativas tienen un dashboard muy distinto: en lugar de las
   // métricas generales del sistema, ven el resumen por nivel/grado de SU institución.
   const isEducationInstitutionalUser =
@@ -97,7 +74,6 @@ export default function DashboardPage() {
   const alertsCount = childrenSummary?.alertsCount ?? 0;
   // Instituciones: solo admin/coordinador necesitan el conteo global
   const { data: institutions = [] } = useInstitutionsQuery({ enabled: isAdmin || isCoordinador, scoped: true });
-  const { data: users = [] } = useUsersQuery({ enabled: canViewUsers });
 
   if (!user) {
     return (
