@@ -48,7 +48,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           {canSeeUsers && <Link to="/users">Usuarios</Link>}
           {canSeeInstitutions && (
             <Link to={institutionLink}>
-              {isInstitucion ? 'Mi institución' : 'Instituciones'}
+              {isInstitucion ? 'Mi institución' : 'Efectores'}
             </Link>
           )}
         </nav>

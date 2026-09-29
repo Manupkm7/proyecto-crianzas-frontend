@@ -7,6 +7,7 @@ import type {
   ImportRow,
   ImportRowOverrides,
   ImportSheetSubmission,
+  ImportSource,
   ResolveRowResponse,
 } from '../types'
 
@@ -43,7 +44,7 @@ export const submitImportSheets = (data: {
  * (no en cookies), así que no se puede navegar directo con un <a href>.
  */
 export const downloadImportTemplate = (
-  source: 'civil_registry' | 'education' | 'health',
+  source: ImportSource,
   format: 'xlsx' | 'csv' | 'txt',
 ) =>
   api.get('/imports/template', {

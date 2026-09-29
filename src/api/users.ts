@@ -1,4 +1,5 @@
 import api from './client'
+import { UNSCOPED } from './localityScope'
 import type { ApiItemResponse, ApiListResponse, ActivityLog, AuthUser } from '../types'
 
 export interface UserPayload {
@@ -13,7 +14,9 @@ export interface UserPayload {
 
 // Devuelve la lista paginada de usuarios.
 // Admin ve todos; responsable de institución ve solo sus representantes.
-export const getUsers = () => api.get<ApiListResponse<AuthUser>>('/users')
+// scoped=false ignora el ámbito global del sidebar (ej. asignar permisos en RolesPage).
+export const getUsers = (scoped = true) =>
+  api.get<ApiListResponse<AuthUser>>('/users', scoped ? {} : UNSCOPED)
 
 // Devuelve el detalle completo de un usuario (con permisos y relaciones).
 export const getUser = (id: string) => api.get<ApiItemResponse<AuthUser>>(`/users/${id}`)

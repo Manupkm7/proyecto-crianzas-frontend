@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useLocalityScope } from "../context/LocalityScopeContext";
 import { useChildrenQuery } from "../hooks/useChildren";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { PageHeader } from "../components/PageHeader";
@@ -11,31 +12,28 @@ import { EmptyState } from "../components/EmptyState";
 import type { Child } from "../types/index";
 import list from "./css/list.module.css";
 import { Avatar } from "../components/Avatar";
+import {
+  ServiceProvidersCell,
+  ServicesSummaryCell,
+} from "../components/ChildServicesSummaryCells";
 
 const PER_PAGE = 20;
 
-type InstitutionLocality = "" | "san_justo" | "uriburu";
-
-const INSTITUTION_LOCALITY_OPTIONS: {
-  value: InstitutionLocality;
-  label: string;
-}[] = [
-  { value: "", label: "Todas las instituciones" },
-  { value: "san_justo", label: "San Justo (Santa Fe)" },
-  { value: "uriburu", label: "Uriburu (La Pampa)" },
-];
-
 export default function ChildrenListPage() {
   const { user } = useAuth();
+  // El filtro por localidad es global (sidebar → header X-Locality-Scope);
+  // acá solo se usa para volver a la página 1 cuando cambia.
+  const { scope } = useLocalityScope();
   const [searchInput, setSearchInput] = useState("");
-  const [institutionLocality, setInstitutionLocality] =
-    useState<InstitutionLocality>("");
+  const [servicesFilter, setServicesFilter] = useState<"all" | "yes" | "no">(
+    "all",
+  );
   const [page, setPage] = useState(1);
   const search = useDebouncedValue(searchInput);
 
   useEffect(() => {
     setPage(1);
-  }, [search, institutionLocality]);
+  }, [search, scope, servicesFilter]);
 
   const {
     data,
@@ -43,7 +41,8 @@ export default function ChildrenListPage() {
     error: queryError,
   } = useChildrenQuery({
     search: search || undefined,
-    institution_locality: institutionLocality || undefined,
+    has_services:
+      servicesFilter === "all" ? undefined : servicesFilter === "yes",
     page,
     per_page: PER_PAGE,
   });
@@ -93,7 +92,9 @@ export default function ChildrenListPage() {
       header: "Educación",
       render: (c) =>
         c.education_record ? (
-          <span className="badge badge-blue">Registrado</span>
+          <span className="badge badge-blue">
+            {c.education_record.institution?.name ?? "Registrado"}
+          </span>
         ) : (
           <span className={list.muted}>Sin registro</span>
         ),
@@ -103,10 +104,22 @@ export default function ChildrenListPage() {
       header: "Salud",
       render: (c) =>
         c.health_record ? (
-          <span className="badge badge-green">Registrado</span>
+          <span className="badge badge-green">
+            {c.health_record.institution?.name ?? "Registrado"}
+          </span>
         ) : (
           <span className={list.muted}>Sin registro</span>
         ),
+    },
+    {
+      key: "services",
+      header: "Prestaciones",
+      render: (c) => <ServicesSummaryCell child={c} />,
+    },
+    {
+      key: "providers",
+      header: "Efectores",
+      render: (c) => <ServiceProvidersCell child={c} />,
     },
     {
       key: "alerts",
@@ -138,7 +151,7 @@ export default function ChildrenListPage() {
       <PageHeader
         eyebrow="Gestión"
         title="Niños"
-        subtitle="Todos los niños del sistema, con sus registros educativos y de salud."
+        subtitle="Todos los niños del sistema, con sus registros educativos y de salud y sus prestaciones."
         actions={
           canCreate ? (
             <Link to="/children/new" className="btn btn-primary">
@@ -157,18 +170,16 @@ export default function ChildrenListPage() {
             onChange={(e) => setSearchInput(e.target.value)}
           />
           <select
-            aria-label="Filtrar por institución"
-            value={institutionLocality}
+            aria-label="Filtrar por prestaciones"
+            value={servicesFilter}
             onChange={(e) =>
-              setInstitutionLocality(e.target.value as InstitutionLocality)
+              setServicesFilter(e.target.value as "all" | "yes" | "no")
             }
             style={{ fontSize: "0.85rem", padding: "6px 8px" }}
           >
-            {INSTITUTION_LOCALITY_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
+            <option value="all">Prestaciones: todas</option>
+            <option value="yes">Con prestaciones</option>
+            <option value="no">Sin prestaciones</option>
           </select>
         </div>
         <span className={list.count}>

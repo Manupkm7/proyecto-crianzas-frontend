@@ -1,12 +1,70 @@
 export type Role = 'admin' | 'coordinador' | 'institucion' | 'representante'
 
-export type InstitutionType = 'salud' | 'educacion' | 'desarrollo_social' | 'justicia' | 'otro'
+/**
+ * Sector = tipo de institución (misma cosa, ver App\Support\Sector). Etiquetas:
+ * salud → Salud, educacion → Cuidado y educación, desarrollo_social → Protección
+ * social, recreacion → Recreación, deporte y cultura. 'justicia' es heredado:
+ * válido para instituciones viejas pero no se ofrece para nuevas.
+ */
+export type InstitutionType =
+  | 'salud'
+  | 'educacion'
+  | 'desarrollo_social'
+  | 'recreacion'
+  | 'justicia'
+  | 'otro'
 
-export interface Institution {
+/** Sectores ofrecidos para cargas nuevas (sin los heredados). */
+export const SECTOR_OPTIONS: { value: Exclude<InstitutionType, 'justicia'>; label: string }[] = [
+  { value: 'salud', label: 'Salud' },
+  { value: 'educacion', label: 'Cuidado y educación' },
+  { value: 'desarrollo_social', label: 'Protección social' },
+  { value: 'recreacion', label: 'Recreación, deporte y cultura' },
+  { value: 'otro', label: 'Otro' },
+]
+
+export type AdministrativeDependency = 'estatal' | 'privado' | 'comunitario' | 'otros'
+
+export const ADMINISTRATIVE_DEPENDENCY_OPTIONS: { value: AdministrativeDependency; label: string }[] = [
+  { value: 'estatal', label: 'Estatal' },
+  { value: 'privado', label: 'Privado' },
+  { value: 'comunitario', label: 'Comunitario' },
+  { value: 'otros', label: 'Otros' },
+]
+
+/** Dependencia programática (área de gobierno de la que depende un efector). */
+export interface ProgramArea {
   id: string
   name: string
+}
+
+/** Efector con el que articula una institución (relación simétrica). */
+export interface InstitutionArticulation {
+  id: string
+  code: number
+  name: string
+  type: InstitutionType
+  type_label: string
+  is_active: boolean
+}
+
+/** Un efector ES una institución: la ficha del efector son estos mismos campos. */
+export interface Institution {
+  id: string
+  /** ID_EFECTOR: número correlativo generado por el sistema. */
+  code?: number
+  name: string
+  /** Sector (= tipo). */
   type: InstitutionType
   type_label?: string
+  administrative_dependency?: AdministrativeDependency | null
+  administrative_dependency_label?: string | null
+  program_area?: ProgramArea | null
+  /** Destinatarios — texto libre. */
+  beneficiaries?: string | null
+  observations?: string | null
+  /** Solo en detalle / alta / edición. */
+  articulations?: InstitutionArticulation[]
   address?: string | null
   phone?: string | null
   /** Jurisdicción — se expone aplanada (no anidada), ver InstitutionResource. */
@@ -221,11 +279,68 @@ export interface DeathRecord {
   institution?: { id: string; name: string } | null
 }
 
+// ─── Prestaciones por período ────────────────────────────────────────────────
+
+/** Sector de una prestación — mismas claves que el sector/tipo de institución. */
+export type ServiceSectorKey = Exclude<InstitutionType, 'justicia'>
+
+export type ServicePeriodType = 'trimestre' | 'bimestre'
+
+/** Prestación del catálogo (Control de niño sano, AUH, Educación inicial...). */
+export interface ServiceType {
+  id: string
+  name: string
+  sector: ServiceSectorKey
+  sector_label: string
+  description?: string | null
+  /** Todo niño debería tenerla en cada período informado; si falta, alerta del SAT. */
+  is_mandatory: boolean
+  is_active: boolean
+  /** Solo para admin: cuántas prestaciones cargadas la usan. */
+  usage_count?: number
+}
+
+export interface ServiceSectorOption {
+  value: ServiceSectorKey
+  label: string
+}
+
+/** Prestación recibida por un niño en un período, informada por un efector. */
+export interface ChildService {
+  id: string
+  child_id: string
+  /** Solo en la grilla general (GET /child-services). */
+  child?: { id: string; first_name: string; last_name: string } | null
+  service_type?: { id: string; name: string; is_mandatory: boolean } | null
+  sector: ServiceSectorKey
+  sector_label: string
+  institution?: { id: string; name: string; type: InstitutionType } | null
+  year: number
+  period_type: ServicePeriodType
+  period_number: number
+  period_start: string
+  /** "2026-trimestre-1" */
+  period_key: string
+  /** "TRIM12026" */
+  period_code: string
+  /** "Trimestre 1 · 2026" */
+  period_label: string
+  service_number?: number | null
+  observations?: string | null
+  has_alert: boolean
+  alert_flagged_at?: string | null
+  origin: 'import' | 'manual'
+  created_at?: string
+  updated_at?: string
+}
+
 export type ChildAlertType =
   | 'no_escolarizado'
   | 'inasistencias_elevadas'
   | 'control_atrasado'
   | 'vacunas_atrasadas'
+  | 'alerta_prestacion'
+  | 'prestacion_obligatoria_faltante'
 
 /** Datos de una gestión de alerta ("en seguimiento"). */
 export interface ChildAlertManagement {
@@ -241,21 +356,46 @@ export interface ChildAlertHistoryEntry extends ChildAlertManagement {
 
 /**
  * Alerta del SAT calculada por el backend (ver ChildAlertEvaluator). Salta si la
- * foto vigente O el último bimestre informado marcan el problema.
+ * foto vigente O el último bimestre informado marcan el problema. Las de sector
+ * 'prestaciones' salen de las prestaciones por período (solo admin/coordinador).
  */
 export interface ChildAlert {
   type: ChildAlertType
-  sector: 'educacion' | 'salud'
+  sector: 'educacion' | 'salud' | 'prestaciones'
   label: string
-  /** Dónde se detecta ahora mismo: 'record' (foto vigente) y/o 'period' (último bimestre). */
-  sources: ('record' | 'period')[]
-  /** Período "AAAA-B" del último bimestre, si es una de las fuentes. */
+  /**
+   * Dónde se detecta ahora mismo: 'record' (foto vigente) y/o 'period' (último
+   * bimestre); 'services' para las alertas de prestaciones.
+   */
+  sources: ('record' | 'period' | 'services')[]
+  /**
+   * Educación/salud: período "AAAA-B" del último bimestre, si es una de las fuentes.
+   * Prestaciones: etiqueta legible del período ("Trimestre 1 · 2026").
+   */
   period?: string | null
+  /** Solo prestaciones: qué la dispara (prestaciones con alerta u obligatorias faltantes). */
+  details?: string[]
   status: 'pending' | 'managed'
   /** Gestión vigente, si status === 'managed'. */
   management?: ChildAlertManagement | null
   /** Historial de gestiones de este (niño, tipo), de la más reciente a la más vieja. */
   history?: ChildAlertHistoryEntry[]
+}
+
+export interface ChildServicesSummary {
+  total: number
+  alerts_count: number
+  latest_period_code: string | null
+  latest_period_label: string | null
+  /** Prestaciones del último período, una por registro (misma prestación de 2 efectores = 2 entradas). */
+  latest_period_services: {
+    id: string
+    name: string | null
+    provider_name: string | null
+    has_alert: boolean
+  }[]
+  sectors: { key: ServiceSectorKey; label: string }[]
+  providers: { id: string; name: string; type: InstitutionType }[]
 }
 
 export interface Child {
@@ -272,6 +412,8 @@ export interface Child {
   health_record?: HealthRecord | null
   birth_record?: BirthRecord | null
   death_record?: DeathRecord | null
+  /** Resumen de prestaciones para las tablas (admin/coord: todas; institución: solo las que efectuó). */
+  services_summary?: ChildServicesSummary
   /** Alertas del SAT calculadas por el backend, cada una con su estado de gestión. */
   alerts?: ChildAlert[]
   /** true si hay al menos una alerta PENDIENTE (las gestionadas no cuentan). */
@@ -323,7 +465,11 @@ export interface ApiErrorBody {
 
 // ─── Importaciones masivas ────────────────────────────────────────────────────
 
-export type ImportSource = 'civil_registry' | 'education' | 'health'
+/**
+ * 'services' = hoja de prestaciones: una fila por prestación, cada una con su
+ * efector (sin institución de la hoja). Mismo flujo de matcheo de niños.
+ */
+export type ImportSource = 'civil_registry' | 'education' | 'health' | 'services'
 export type ImportBatchStatus = 'pending' | 'processing' | 'completed' | 'failed'
 export type ImportRowStatus =
   | 'pending'
@@ -423,6 +569,9 @@ export interface ImportRowOverrides {
   vaccines_current?: boolean | null
   last_checkup_date?: string | null
   observations?: string | null
+  /** Prestaciones: alerta SI/NO. */
+  alert?: boolean | null
+  service_number?: number | null
 }
 
 export interface ImportRow {
@@ -448,6 +597,13 @@ export interface ImportRow {
   vaccines_current?: boolean | null
   last_checkup_date?: string | null
   observations?: string | null
+  /** Prestación que viene en la misma fila (cualquier fuente), si la trae. */
+  period_label?: string | null
+  service_number?: number | null
+  service_name?: string | null
+  sector_label?: string | null
+  provider_name?: string | null
+  alert?: boolean | null
   raw_columns?: Record<string, string | number | null>
   match_confidence?: number | null
   match_notes?: string | null

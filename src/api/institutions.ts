@@ -1,5 +1,6 @@
 import api from './client'
-import type { ApiItemResponse, ApiListResponse, Institution } from '../types'
+import { UNSCOPED } from './localityScope'
+import type { ApiItemResponse, ApiListResponse, Institution, ProgramArea } from '../types'
 
 export type InstitutionPayload = Partial<
   Pick<
@@ -15,13 +16,28 @@ export type InstitutionPayload = Partial<
     | 'primario_years'
     | 'offers_secundario'
     | 'secundario_years'
+    | 'administrative_dependency'
+    | 'beneficiaries'
+    | 'observations'
   >
->
+> & {
+  program_area_id?: string | null
+  /** Lista COMPLETA de instituciones articuladas (se sincroniza). Solo admin. */
+  articulation_ids?: string[]
+}
+
+// Catálogo de dependencias programáticas (menú + agregar nueva).
+export const getProgramAreas = () =>
+  api.get<{ data: ProgramArea[] }>('/program-areas')
+
+export const createProgramArea = (name: string) =>
+  api.post<{ data: ProgramArea }>('/program-areas', { name })
 
 // Devuelve la lista paginada de instituciones.
 // Admin y coordinador ven todas; institución/representante solo ven la propia.
-export const getInstitutions = (params: Record<string, unknown> = {}) =>
-  api.get<ApiListResponse<Institution>>('/institutions', { params })
+// scoped=false ignora el ámbito global del sidebar (desplegables de formularios).
+export const getInstitutions = (params: Record<string, unknown> = {}, scoped = true) =>
+  api.get<ApiListResponse<Institution>>('/institutions', { params, ...(scoped ? {} : UNSCOPED) })
 
 // Devuelve el detalle de una institución.
 export const getInstitution = (id: string) =>

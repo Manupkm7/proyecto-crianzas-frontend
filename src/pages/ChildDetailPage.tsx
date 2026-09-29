@@ -14,6 +14,7 @@ import { getEducationObservationAttachment } from '../api/educationObservations'
 import { getHealthObservationAttachment } from '../api/healthObservations'
 import { useAttachmentViewer } from '../hooks/useAttachmentViewer'
 import { PdfViewerModal } from '../components/PdfViewerModal'
+import { ChildServicesSection } from '../components/ChildServicesSection'
 import {
   useEducationPeriodReportsQuery,
   useSaveEducationPeriodReportMutation,
@@ -1206,6 +1207,8 @@ function AlertRow({
   const managed = alert.status === 'managed'
   const inRecord = alert.sources.includes('record')
   const inPeriod = alert.sources.includes('period')
+  const fromServices = alert.sources.includes('services')
+  const details = alert.details ?? []
   const olderHistory = (alert.history ?? []).filter((h) => !h.active)
 
   async function submit() {
@@ -1231,13 +1234,30 @@ function AlertRow({
         <Badge tone={managed ? 'neutral' : 'amber'}>{managed ? 'En seguimiento' : 'Pendiente'}</Badge>
       </div>
 
-      <p className={styles.alertRowMeta}>
-        {inRecord && inPeriod
-          ? 'Marcada en la ficha vigente y en el último bimestre informado.'
-          : inPeriod
-            ? `Marcada en el ${formatPeriodLabel(alert.period)}, aunque la ficha vigente diga lo contrario.`
-            : 'Marcada en la ficha vigente.'}
-      </p>
+      {fromServices ? (
+        <>
+          <p className={styles.alertRowMeta}>
+            {alert.type === 'prestacion_obligatoria_faltante'
+              ? `En el último período informado${alert.period ? ` (${alert.period})` : ''} faltan:`
+              : 'Prestaciones marcadas con alerta por el efector:'}
+          </p>
+          {details.length > 0 && (
+            <ul className={styles.alertRowMeta} style={{ margin: '2px 0 0', paddingLeft: 18 }}>
+              {details.map((d, i) => (
+                <li key={i}>{d}</li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : (
+        <p className={styles.alertRowMeta}>
+          {inRecord && inPeriod
+            ? 'Marcada en la ficha vigente y en el último bimestre informado.'
+            : inPeriod
+              ? `Marcada en el ${formatPeriodLabel(alert.period)}, aunque la ficha vigente diga lo contrario.`
+              : 'Marcada en la ficha vigente.'}
+        </p>
+      )}
 
       {managed && alert.management && (
         <p className={styles.alertRowMeta}>
@@ -1512,6 +1532,14 @@ export default function ChildDetailPage() {
             canManage={isAdmin || isInstitucion}
           />
 
+          {/* prestaciones por período — solo las que brindó esta institución */}
+          <ChildServicesSection
+            childId={id!}
+            canEdit={isInstitutionalUser}
+            isAdmin={false}
+            showMissing={false}
+          />
+
           {/* observaciones — editable para usuarios institucionales */}
           <ObservacionesSection childId={id!} canAdd />
         </div>
@@ -1642,6 +1670,14 @@ export default function ChildDetailPage() {
           />
 
           <HealthObservationSection childId={id!} canAdd={isInstitucion && isSaludInstitution} />
+
+          {/* prestaciones por período — solo las que brindó esta institución */}
+          <ChildServicesSection
+            childId={id!}
+            canEdit={isInstitutionalUser}
+            isAdmin={false}
+            showMissing={false}
+          />
         </div>
       </div>
     )
@@ -1839,6 +1875,16 @@ export default function ChildDetailPage() {
             <HealthObservationSection childId={id!} canAdd={isAdmin} />
           )}
         </div>
+      </div>
+
+      {/* Prestaciones por período de todos los efectores — ancho completo */}
+      <div style={{ marginTop: 20 }}>
+        <ChildServicesSection
+          childId={id!}
+          canEdit={isAdmin}
+          isAdmin={isAdmin}
+          showMissing={!isInstitutionalUser}
+        />
       </div>
     </div>
   )

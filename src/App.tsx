@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { LocalityScopeProvider } from './context/LocalityScopeContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
 import InstitutionalLoginPage from './pages/InstitutionalLoginPage'
@@ -17,10 +18,13 @@ import ImportReviewPage from './pages/ImportReviewPage'
 import UserImportsListPage from './pages/UserImportsListPage'
 import UserImportReviewPage from './pages/UserImportReviewPage'
 import RolesPage from './pages/RolesPage'
+import ServiceTypesPage from './pages/ServiceTypesPage'
+import DatabaseExportPage from './pages/DatabaseExportPage'
 
 export default function App() {
   return (
     <AuthProvider>
+      <LocalityScopeProvider>
       <BrowserRouter>
         <Routes>
           {/* Públicas */}
@@ -141,6 +145,16 @@ export default function App() {
             }
           />
 
+          {/* Catálogo de prestaciones — qué prestaciones son obligatorias (solo admin) */}
+          <Route
+            path="/service-types"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <ServiceTypesPage />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Importaciones masivas (solo admin) */}
           <Route
             path="/imports"
@@ -155,6 +169,16 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <ImportReviewPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Exportación de la base de datos (solo admin) */}
+          <Route
+            path="/database-export"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <DatabaseExportPage />
               </ProtectedRoute>
             }
           />
@@ -181,6 +205,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      </LocalityScopeProvider>
     </AuthProvider>
   )
 }

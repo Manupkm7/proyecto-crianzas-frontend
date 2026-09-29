@@ -15,13 +15,13 @@ export interface ChildrenQueryParams {
   /** Filtra por si tiene o no registro educativo/de salud cargado. */
   has_education?: boolean
   has_health?: boolean
+  /** Con/sin prestaciones (la institución solo cuenta las que efectuó). */
+  has_services?: boolean
   /** Solo niños con alguna alerta (ver Child.alerts). */
   alert?: boolean
   /** Filtra por nivel/grado del registro educativo (dashboard de instituciones educativas). */
   level?: string
   grade?: number
-  /** Solo niños con registro (educativo o de salud) en alguna institución de esa localidad fija. */
-  institution_locality?: 'san_justo' | 'uriburu'
   page?: number
   per_page?: number
 }

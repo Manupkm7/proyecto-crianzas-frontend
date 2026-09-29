@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getLocalityScope, LOCALITY_SCOPE_HEADER } from './localityScope'
 
 // Instancia de axios preconfigurada para hablar con el backend Laravel.
 // Todos los requests de la aplicación pasan por aquí.
@@ -15,6 +16,12 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  // Ámbito global del sidebar (ver localityScope.ts). No pisa un valor puesto
+  // a mano en el request (UNSCOPED, para los desplegables de formularios).
+  const scope = getLocalityScope()
+  if (scope && config.headers[LOCALITY_SCOPE_HEADER] === undefined) {
+    config.headers[LOCALITY_SCOPE_HEADER] = scope
   }
   return config
 })

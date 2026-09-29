@@ -12,13 +12,16 @@ import { queryKeys } from '../api/queryKeys'
 
 interface UseUsersQueryOptions {
   enabled?: boolean
+  /** false = ignora el ámbito global del sidebar (por defecto lo respeta). */
+  scoped?: boolean
 }
 
 export function useUsersQuery(options: UseUsersQueryOptions = {}) {
+  const scoped = options.scoped ?? true
   return useQuery({
-    queryKey: queryKeys.users.all,
+    queryKey: scoped ? queryKeys.users.all : queryKeys.users.unscoped,
     queryFn: async () => {
-      const { data } = await getUsers()
+      const { data } = await getUsers(scoped)
       return data.data ?? []
     },
     enabled: options.enabled ?? true,

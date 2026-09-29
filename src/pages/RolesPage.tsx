@@ -452,7 +452,7 @@ function UserPermissionsTab({ allPermissionNames }: { allPermissionNames: string
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
-  const { data: users = [], isLoading: loadingUsers } = useUsersQuery()
+  const { data: users = [], isLoading: loadingUsers } = useUsersQuery({ scoped: false })
   const { data: selectedUser, isLoading: loadingUser } = useUserQuery(selectedUserId || undefined)
   const syncMutation = useSyncUserPermissionsMutation()
 

@@ -1,0 +1,49 @@
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.count {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 300px;
+}
+.list li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.alertItem {
+  color: var(--danger, #c0392b);
+}
+
+.muted {
+  color: var(--text-soft);
+}

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import styles from "./css/dashboard.module.css";
 import { Card } from "../components/Card";
@@ -7,20 +6,17 @@ import {
   IconBuilding,
   IconChevronRight,
   IconChildren,
-  IconDownload,
   IconHeart,
   IconPlus,
   IconUsers,
   type IconProps,
 } from "../components/icons";
 import { Button } from "../components/Button";
-import { ChildrenAlertsTable } from "../components/ChildrenAlertsTable";
+import { ChildServicesGrid } from "../components/ChildServicesGrid";
 import { EducationLevelDashboard } from "../components/EducationLevelDashboard";
 import { useChildrenQuery } from "../hooks/useChildren";
 import { useUsersQuery } from "../hooks/useUsers";
 import { useInstitutionsQuery } from "../hooks/useInstitutions";
-import { useDepartmentsQuery, useLocalitiesQuery, useProvincesQuery } from "../hooks/useGeo";
-import { downloadDatabaseExport } from "../api/databaseExport";
 
 interface Stat {
   label: string;
@@ -39,18 +35,6 @@ interface Action {
   color: string;
   soft: string;
   primary?: boolean;
-}
-
-// Igual convención que ChildDetailPage: bimestres 1 a 5, valor "AÑO-BIMESTRE".
-function getExportBimestreOptions() {
-  const y = new Date().getFullYear();
-  const result: { value: string; label: string }[] = [];
-  for (const year of [y + 1, y, y - 1]) {
-    for (let b = 5; b >= 1; b--) {
-      result.push({ value: `${year}-${b}`, label: `Año ${year} · Bimestre ${b}` });
-    }
-  }
-  return result;
 }
 
 function getHeroDescription(
@@ -112,99 +96,8 @@ export default function DashboardPage() {
   const childrenTotal = childrenSummary?.total ?? 0;
   const alertsCount = childrenSummary?.alertsCount ?? 0;
   // Instituciones: solo admin/coordinador necesitan el conteo global
-  const { data: institutions = [] } = useInstitutionsQuery({ enabled: isAdmin || isCoordinador });
+  const { data: institutions = [] } = useInstitutionsQuery({ enabled: isAdmin || isCoordinador, scoped: true });
   const { data: users = [] } = useUsersQuery({ enabled: canViewUsers });
-
-  const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
-
-  // Jurisdicción opcional para acotar la exportación — vacío = todo el sistema.
-  const [exportProvinceId, setExportProvinceId] = useState("");
-  const [exportDepartmentId, setExportDepartmentId] = useState("");
-  const [exportLocalityId, setExportLocalityId] = useState("");
-  const { data: exportProvinces = [] } = useProvincesQuery();
-  const { data: exportDepartments = [] } = useDepartmentsQuery(
-    exportProvinceId || undefined,
-  );
-  const { data: exportLocalities = [] } = useLocalitiesQuery(
-    exportDepartmentId || undefined,
-  );
-
-  // Filtro por tiempo, mutuamente excluyente: sin filtro, rango de fechas, o bimestre.
-  const [exportTimeMode, setExportTimeMode] = useState<"none" | "range" | "period">(
-    "none",
-  );
-  const [exportDateFrom, setExportDateFrom] = useState("");
-  const [exportDateTo, setExportDateTo] = useState("");
-  const [exportPeriod, setExportPeriod] = useState(""); // "AAAA-B"
-
-  const dateRangeInvalid =
-    exportTimeMode === "range" &&
-    !!exportDateFrom &&
-    !!exportDateTo &&
-    exportDateTo < exportDateFrom;
-
-  // Descarga autenticada del ZIP: axios trae el archivo como blob (no navegación
-  // por <a href>, porque el token va en el header Authorization, no en cookies).
-  async function handleDatabaseExport() {
-    setExportError(null);
-
-    if (exportTimeMode === "range" && (!exportDateFrom || !exportDateTo)) {
-      setExportError("Elegí fecha desde y fecha hasta.");
-      return;
-    }
-    if (dateRangeInvalid) {
-      setExportError("La fecha hasta no puede ser anterior a la fecha desde.");
-      return;
-    }
-    if (exportTimeMode === "period" && !exportPeriod) {
-      setExportError("Elegí un bimestre.");
-      return;
-    }
-
-    setExporting(true);
-    try {
-      const [periodYear, periodBimester] = exportPeriod
-        ? exportPeriod.split("-").map(Number)
-        : [undefined, undefined];
-
-      const response = await downloadDatabaseExport({
-        // Solo se manda el nivel más específico elegido — el backend resuelve
-        // las instituciones a partir de ese único filtro (ver DatabaseExportController).
-        ...(exportLocalityId
-          ? { locality_id: exportLocalityId }
-          : exportDepartmentId
-          ? { department_id: exportDepartmentId }
-          : exportProvinceId
-          ? { province_id: exportProvinceId }
-          : {}),
-        ...(exportTimeMode === "range"
-          ? { date_from: exportDateFrom, date_to: exportDateTo }
-          : {}),
-        ...(exportTimeMode === "period" && periodYear && periodBimester
-          ? { period_year: periodYear, period_bimester: periodBimester }
-          : {}),
-      });
-      const disposition = response.headers["content-disposition"] as
-        | string
-        | undefined;
-      const match = disposition?.match(/filename="?([^"]+)"?/);
-      const filename = match?.[1] ?? `export_${Date.now()}.zip`;
-
-      const url = URL.createObjectURL(response.data as Blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      setExportError("No se pudo generar la exportación. Intentá de nuevo.");
-    } finally {
-      setExporting(false);
-    }
-  }
 
   if (!user) {
     return (
@@ -223,30 +116,6 @@ export default function DashboardPage() {
       color: "var(--primary)",
       soft: "var(--primary-soft)",
     },
-    // Admin/coordinador: conteo global de usuarios activos del sistema
-    ...(isAdmin || isCoordinador
-      ? [
-          {
-            label: "Usuarios activos",
-            value: users.filter((u) => u.is_active).length,
-            icon: IconUsers,
-            color: "var(--edu)",
-            soft: "var(--edu-soft)",
-          },
-        ]
-      : []),
-    // Instituciones del sistema: solo relevante para admin/coordinador
-    ...(isAdmin || isCoordinador
-      ? [
-          {
-            label: "Instituciones",
-            value: institutions.length,
-            icon: IconBuilding,
-            color: "var(--health)",
-            soft: "var(--health-soft)",
-          },
-        ]
-      : []),
     {
       label: "Con alertas",
       value: alertsCount,
@@ -254,46 +123,20 @@ export default function DashboardPage() {
       color: "#a9741f",
       soft: "var(--amber-soft)",
     },
-  ];
-
-  const ACTIONS: Action[] = [
-    {
-      title: "Niños",
-      text: "Consultá el listado completo con sus registros educativos y de salud.",
-      href: "/children",
-      cta: "Ver niños",
-      icon: IconChildren,
-      color: "var(--primary)",
-      soft: "var(--primary-soft)",
-      primary: true,
-    },
-    ...(canCreateChildren
+    // Instituciones del sistema: solo relevante para admin/coordinador
+    ...(isAdmin || isCoordinador
       ? [
           {
-            title: "Registrar nuevo niño",
-            text: "Agregá un nuevo niño al sistema e ingresá sus datos y seguimiento.",
-            href: "/children/new",
-            cta: "Registrar niño",
-            icon: IconPlus,
-            color: "var(--edu)",
-            soft: "var(--edu-soft)",
-          },
-        ]
-      : []),
-    ...(canManageUsers
-      ? [
-          {
-            title: "Gestión de usuarios",
-            text: "Administrá roles, instituciones y accesos de todos los usuarios del sistema.",
-            href: "/users",
-            cta: "Ver usuarios",
-            icon: IconUsers,
+            label: "Efectores",
+            value: institutions.length,
+            icon: IconBuilding,
             color: "var(--health)",
             soft: "var(--health-soft)",
           },
         ]
       : []),
   ];
+
 
   return (
     <>
@@ -302,13 +145,13 @@ export default function DashboardPage() {
         <section className={styles.hero}>
           <span className={`${styles.heroBlob} ${styles.heroBlob1}`} />
           <span className={`${styles.heroBlob} ${styles.heroBlob2}`} />
-          <div className={styles.heroContent}>
-            <p className={styles.heroEyebrow}>Bienvenido/a</p>
-            <h1 className={styles.heroTitle}>{user.name}</h1>
-            <p className={styles.heroText}>
-              {getHeroDescription(role, institutionName, institutionType)}
-            </p>
-          </div>
+            <div className={styles.heroContent}>
+              <p className={styles.heroEyebrow}>Bienvenido/a</p>
+              <h1 className={styles.heroTitle}>{user.name}</h1>
+              <p className={styles.heroText}>
+                {getHeroDescription(role, institutionName, institutionType)}
+              </p>
+            </div>
         </section>
         {isEducationInstitutionalUser ? (
           <>
@@ -336,256 +179,14 @@ export default function DashboardPage() {
                 );
               })}
             </div>
-            <h2 className={styles.sectionTitle}>Accesos rápidos</h2>
-            <div className={styles.actions}>
-              {ACTIONS.map((a) => {
-                const Icon = a.icon;
-                return (
-                  <a key={a.title} href={a.href} className={styles.cardLink}>
-                    <Card className={styles.action} style={{ height: "100%" }}>
-                      <div className={styles.actionHead}>
-                        <span
-                          className={styles.actionIcon}
-                          style={{ backgroundColor: a.soft, color: a.color }}
-                        >
-                          <Icon size={22} />
-                        </span>
-                        <span className={styles.actionTitle}>{a.title}</span>
-                      </div>
-                      <p className={styles.actionText}>{a.text}</p>
-                      <div className={styles.actionFoot}>
-                        <Button
-                          variant={a.primary ? "primary" : "secondary"}
-                          size="sm"
-                        >
-                          {a.cta}
-                          <IconChevronRight size={16} />
-                        </Button>
-                      </div>
-                    </Card>
-                  </a>
-                );
-              })}
-
-              {/* Exportar toda la base de datos — exclusivo del admin, no es un link
-                  de navegación sino una descarga autenticada, así que no usa ACTIONS. */}
-              {isAdmin && (
-                <Card className={styles.action} style={{ height: "100%" }}>
-                  <div className={styles.actionHead}>
-                    <span
-                      className={styles.actionIcon}
-                      style={{
-                        backgroundColor: "var(--surface-muted)",
-                        color: "var(--text)",
-                      }}
-                    >
-                      <IconDownload size={22} />
-                    </span>
-                    <span className={styles.actionTitle}>
-                      Exportar base de datos
-                    </span>
-                  </div>
-                  <p className={styles.actionText}>
-                    Descargá un ZIP con un Excel (una hoja por tabla:
-                    instituciones, niños, registros, usuarios, etc.) más los
-                    PDF adjuntos, menos el historial de auditoría.
-                  </p>
-
-                  <p
-                    className={styles.actionText}
-                    style={{ marginBottom: 4, fontSize: "0.8rem" }}
-                  >
-                    Jurisdicción (opcional — vacío exporta todo el sistema)
-                  </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <select
-                      aria-label="Provincia"
-                      value={exportProvinceId}
-                      onChange={(e) => {
-                        setExportProvinceId(e.target.value);
-                        setExportDepartmentId("");
-                        setExportLocalityId("");
-                      }}
-                      style={{ fontSize: "0.85rem", padding: "4px 6px" }}
-                    >
-                      <option value="">Todas las provincias</option>
-                      {exportProvinces.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      aria-label="Departamento"
-                      value={exportDepartmentId}
-                      onChange={(e) => {
-                        setExportDepartmentId(e.target.value);
-                        setExportLocalityId("");
-                      }}
-                      disabled={!exportProvinceId}
-                      style={{ fontSize: "0.85rem", padding: "4px 6px" }}
-                    >
-                      <option value="">Todos los departamentos</option>
-                      {exportDepartments.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      aria-label="Localidad"
-                      value={exportLocalityId}
-                      onChange={(e) => setExportLocalityId(e.target.value)}
-                      disabled={!exportDepartmentId}
-                      style={{ fontSize: "0.85rem", padding: "4px 6px" }}
-                    >
-                      <option value="">Todas las localidades</option>
-                      {exportLocalities.map((l) => (
-                        <option key={l.id} value={l.id}>
-                          {l.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <p
-                    className={styles.actionText}
-                    style={{ marginTop: 10, marginBottom: 4, fontSize: "0.8rem" }}
-                  >
-                    Filtro por tiempo (opcional)
-                  </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <select
-                      aria-label="Método de filtro por tiempo"
-                      value={exportTimeMode}
-                      onChange={(e) => {
-                        setExportTimeMode(e.target.value as "none" | "range" | "period");
-                        setExportDateFrom("");
-                        setExportDateTo("");
-                        setExportPeriod("");
-                      }}
-                      style={{ fontSize: "0.85rem", padding: "4px 6px" }}
-                    >
-                      <option value="none">Sin filtro (todo el histórico)</option>
-                      <option value="range">Rango de fechas (creado y/o actualizado)</option>
-                      <option value="period">Bimestre</option>
-                    </select>
-
-                    {exportTimeMode === "range" && (
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <input
-                          type="date"
-                          aria-label="Fecha desde"
-                          value={exportDateFrom}
-                          onChange={(e) => setExportDateFrom(e.target.value)}
-                          style={{ fontSize: "0.85rem", padding: "4px 6px", flex: 1 }}
-                        />
-                        <input
-                          type="date"
-                          aria-label="Fecha hasta"
-                          value={exportDateTo}
-                          min={exportDateFrom || undefined}
-                          onChange={(e) => setExportDateTo(e.target.value)}
-                          style={{ fontSize: "0.85rem", padding: "4px 6px", flex: 1 }}
-                        />
-                      </div>
-                    )}
-                    {dateRangeInvalid && (
-                      <p style={{ color: "var(--danger)", fontSize: "0.78rem", margin: 0 }}>
-                        La fecha hasta no puede ser anterior a la fecha desde.
-                      </p>
-                    )}
-
-                    {exportTimeMode === "period" && (
-                      <select
-                        aria-label="Bimestre"
-                        value={exportPeriod}
-                        onChange={(e) => setExportPeriod(e.target.value)}
-                        style={{ fontSize: "0.85rem", padding: "4px 6px" }}
-                      >
-                        <option value="">Elegí un bimestre</option>
-                        {getExportBimestreOptions().map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-
-                  {exportError && (
-                    <div className="alert alert-error" style={{ marginTop: 8 }}>
-                      {exportError}
-                    </div>
-                  )}
-                  <div className={styles.actionFoot}>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={handleDatabaseExport}
-                      disabled={exporting || dateRangeInvalid}
-                    >
-                      {exporting ? "Generando…" : "Descargar ZIP"}
-                      <IconChevronRight size={16} />
-                    </Button>
-                  </div>
-                </Card>
-              )}
-            </div>
-            {canSeeInstitutions && (
-              <div style={{ marginTop: 24 }}>
-                <a
-                  href={isInstitucion ? `/institutions/${user.institution?.id}` : "/institutions"}
-                  className={styles.cardLink}
-                >
-                  <Card
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 16,
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                      <span
-                        className={styles.actionIcon}
-                        style={{
-                          backgroundColor: "var(--surface-muted)",
-                          color: "var(--health)",
-                        }}
-                      >
-                        <IconHeart size={22} />
-                      </span>
-                      <div>
-                        <p className={styles.actionTitle}>
-                          {isInstitucion
-                            ? user.institution?.name ?? "Mi institución"
-                            : "Instituciones"}
-                        </p>
-                        <p className={styles.actionText}>
-                          {isAdmin
-                            ? "Creá, modificá o desactivá instituciones educativas y de salud."
-                            : isInstitucion
-                            ? "Actualizá la dirección y teléfono de contacto de tu institución."
-                            : "Consultá el listado de instituciones del sistema."}
-                        </p>
-                      </div>
-                    </div>
-                    <IconChevronRight size={22} />
-                  </Card>
-                </a>
-              </div>
-            )}
           </>
         )}
 
         <h2 className={styles.sectionTitle} style={{ marginTop: 32 }}>
           Niños
         </h2>
-        <ChildrenAlertsTable
-          levelInstitution={isEducationInstitutionalUser ? user.institution : undefined}
-        />
+        {/* Una fila por prestación (misma estructura que el archivo que se importa) */}
+        <ChildServicesGrid />
       </div>
 
       {isAdmin && (

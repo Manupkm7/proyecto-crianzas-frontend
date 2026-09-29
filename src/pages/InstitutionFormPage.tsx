@@ -6,6 +6,8 @@ import {
   useCreateInstitutionMutation,
   useUpdateInstitutionMutation,
   useResetInstitutionPasswordMutation,
+  useCreateProgramAreaMutation,
+  useProgramAreasQuery,
 } from "../hooks/useInstitutions";
 import { PasswordRevealModal } from "../components/PasswordRevealModal";
 import { InstitutionChangePasswordCard } from "../components/InstitutionChangePasswordCard";
@@ -15,7 +17,15 @@ import {
   useProvincesQuery,
 } from "../hooks/useGeo";
 import { useAuth } from "../context/AuthContext";
-import type { ApiErrorBody, InstitutionType } from "../types";
+import { useProviderOptions } from "../hooks/useServices";
+import {
+  ADMINISTRATIVE_DEPENDENCY_OPTIONS,
+  SECTOR_OPTIONS,
+  type AdministrativeDependency,
+  type ApiErrorBody,
+  type InstitutionArticulation,
+  type InstitutionType,
+} from "../types";
 import styles from "./css/forms.module.css";
 import {
   Checkbox,
@@ -23,16 +33,20 @@ import {
   FormRow,
   Input,
   Select,
+  SectionTitle,
+  Textarea,
 } from "../components/FormControls";
 import { Button } from "../components/Button";
+import { Badge } from "../components/Badge";
 
-const INSTITUTION_TYPES: { value: InstitutionType; label: string }[] = [
-  { value: "salud", label: "Salud" },
-  { value: "educacion", label: "Educación" },
-  { value: "desarrollo_social", label: "Desarrollo Social" },
-  { value: "justicia", label: "Justicia" },
-  { value: "otro", label: "Otro" },
-];
+/** Sectores ofrecidos + el heredado de la institución si lo tiene ('justicia'). */
+function sectorOptions(
+  current: InstitutionType,
+): { value: InstitutionType; label: string }[] {
+  return SECTOR_OPTIONS.some((o) => o.value === current)
+    ? SECTOR_OPTIONS
+    : [...SECTOR_OPTIONS, { value: current, label: "Justicia (heredado)" }];
+}
 
 /**
  * InstitutionFormPage — Formulario para crear o editar una institución.
@@ -74,7 +88,21 @@ export default function InstitutionFormPage() {
     primario_years: 6 as 6 | 7,
     offers_secundario: false,
     secundario_years: 6 as 6 | 7,
+    // Ficha del efector
+    administrative_dependency: "" as AdministrativeDependency | "",
+    program_area_id: "",
+    beneficiaries: "",
+    observations: "",
   });
+
+  // Articulaciones: efectores (instituciones existentes) con los que trabaja.
+  // Se guardan como lista completa: lo que no esté acá se quita al guardar.
+  const [articulations, setArticulations] = useState<
+    Pick<InstitutionArticulation, "id" | "name" | "type_label" | "is_active">[]
+  >([]);
+  const [articulationToAdd, setArticulationToAdd] = useState("");
+  const [newProgramArea, setNewProgramArea] = useState<string | null>(null);
+  const [programAreaError, setProgramAreaError] = useState<string | null>(null);
 
   // Provincia y departamento son solo para encadenar los desplegables: lo único
   // que se envía al backend es locality_id (form.locality_id).
@@ -95,6 +123,13 @@ export default function InstitutionFormPage() {
 
   // El responsable solo puede editar datos de contacto; nombre y tipo son de solo lectura
   const canEditSensitiveFields = isAdmin;
+
+  const { data: programAreas = [] } = useProgramAreasQuery();
+  const createProgramAreaMutation = useCreateProgramAreaMutation();
+  const allInstitutions = useProviderOptions(isAdmin);
+  const articulationCandidates = allInstitutions.filter(
+    (i) => i.id !== id && !articulations.some((a) => a.id === i.id),
+  );
 
   const {
     data: fetchedInstitution,
@@ -122,7 +157,13 @@ export default function InstitutionFormPage() {
       primario_years: (fetchedInstitution.primario_years as 6 | 7) ?? 6,
       offers_secundario: fetchedInstitution.offers_secundario ?? false,
       secundario_years: (fetchedInstitution.secundario_years as 6 | 7) ?? 6,
+      administrative_dependency:
+        fetchedInstitution.administrative_dependency ?? "",
+      program_area_id: fetchedInstitution.program_area?.id ?? "",
+      beneficiaries: fetchedInstitution.beneficiaries ?? "",
+      observations: fetchedInstitution.observations ?? "",
     });
+    setArticulations(fetchedInstitution.articulations ?? []);
     // Precarga provincia/departamento a partir de la cadena de jurisdicción
     // que devuelve el backend, para que el desplegable en cascada arranque
     // ya posicionado en la localidad guardada (ver InstitutionResource).
@@ -134,7 +175,38 @@ export default function InstitutionFormPage() {
     if (institutionQueryError) setError("No se pudo cargar la institución.");
   }, [institutionQueryError]);
 
-  function handleChange(e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+  function addArticulation() {
+    const inst = allInstitutions.find((i) => i.id === articulationToAdd);
+    if (!inst) return;
+    setArticulations((list) =>
+      [...list, { id: inst.id, name: inst.name, type_label: inst.type_label ?? "", is_active: inst.is_active }]
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
+    setArticulationToAdd("");
+  }
+
+  async function saveNewProgramArea() {
+    const name = (newProgramArea ?? "").trim();
+    setProgramAreaError(null);
+    if (name.length < 2) {
+      setProgramAreaError("Escribí el nombre de la dependencia.");
+      return;
+    }
+    try {
+      const area = await createProgramAreaMutation.mutateAsync(name);
+      setForm((f) => ({ ...f, program_area_id: area.id }));
+      setNewProgramArea(null);
+    } catch (err) {
+      const message = isAxiosError<ApiErrorBody>(err)
+        ? (err.response?.data?.errors?.name?.[0] ?? err.response?.data?.message)
+        : undefined;
+      setProgramAreaError(message ?? "No se pudo agregar la dependencia.");
+    }
+  }
+
+  function handleChange(
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) {
     const { name, value, type } = e.target;
     const checked =
       type === "checkbox" ? (e.target as HTMLInputElement).checked : undefined;
@@ -151,7 +223,14 @@ export default function InstitutionFormPage() {
     try {
       // El responsable solo envía los campos que le corresponden editar
       const payload = canEditSensitiveFields
-        ? { ...form }
+        ? {
+            ...form,
+            administrative_dependency: form.administrative_dependency || null,
+            program_area_id: form.program_area_id || null,
+            beneficiaries: form.beneficiaries.trim() || null,
+            observations: form.observations.trim() || null,
+            articulation_ids: articulations.map((a) => a.id),
+          }
         : { address: form.address, phone: form.phone };
 
       if (isEdit && id) {
@@ -236,13 +315,21 @@ export default function InstitutionFormPage() {
           <h1>
             {isEdit ? form.name || "Editar institución" : "Nueva institución"}
           </h1>
+          {isEdit && fetchedInstitution?.code != null && (
+            <p
+              className="text-muted"
+              style={{ marginTop: "0.25rem", fontSize: "0.875rem" }}
+            >
+              ID_EFECTOR <strong>{fetchedInstitution.code}</strong>
+            </p>
+          )}
           {isInstitucion && (
             <p
               className="text-muted"
               style={{ marginTop: "0.25rem", fontSize: "0.875rem" }}
             >
               Podés actualizar la dirección y el teléfono de contacto de tu
-              institución.
+              institución. El resto de la ficha lo mantiene el administrador.
             </p>
           )}
         </div>
@@ -279,7 +366,7 @@ export default function InstitutionFormPage() {
               )}
             </Field>
             <FormRow>
-              <Field label="Tipo de institución *">
+              <Field label="Sector *">
                 <Select
                   id="type"
                   name="type"
@@ -288,7 +375,7 @@ export default function InstitutionFormPage() {
                   required={canEditSensitiveFields}
                   disabled={!canEditSensitiveFields}
                 >
-                  {INSTITUTION_TYPES.map((t) => (
+                  {sectorOptions(form.type).map((t) => (
                     <option key={t.value} value={t.value}>
                       {t.label}
                     </option>
@@ -305,7 +392,7 @@ export default function InstitutionFormPage() {
                       fontWeight: "normal",
                     }}
                   >
-                    El tipo solo puede modificarlo el administrador.
+                    El sector solo puede modificarlo el administrador.
                   </span>
                 )}
               </Field>
@@ -488,6 +575,254 @@ export default function InstitutionFormPage() {
                 )}
               </Field>
             </FormRow>
+
+            {/* ── Ficha del efector (un efector ES una institución) ── */}
+            <SectionTitle>Ficha del efector</SectionTitle>
+
+            <FormRow>
+              <Field label="Dependencia administrativa">
+                <Select
+                  id="administrative_dependency"
+                  name="administrative_dependency"
+                  value={form.administrative_dependency}
+                  onChange={handleChange}
+                  disabled={!canEditSensitiveFields}
+                >
+                  <option value="">Sin especificar</option>
+                  {ADMINISTRATIVE_DEPENDENCY_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+                {fieldErrors.administrative_dependency && (
+                  <span className="field-error">
+                    {fieldErrors.administrative_dependency[0]}
+                  </span>
+                )}
+              </Field>
+
+              <div>
+                <Field label="Dependencia programática">
+                  <Select
+                    id="program_area_id"
+                    name="program_area_id"
+                    value={form.program_area_id}
+                    onChange={handleChange}
+                    disabled={!canEditSensitiveFields}
+                  >
+                    <option value="">Sin especificar</option>
+                    {programAreas.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </Select>
+                  {fieldErrors.program_area_id && (
+                    <span className="field-error">
+                      {fieldErrors.program_area_id[0]}
+                    </span>
+                  )}
+                </Field>
+                {canEditSensitiveFields && newProgramArea === null && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    style={{ marginTop: 6 }}
+                    onClick={() => {
+                      setProgramAreaError(null);
+                      setNewProgramArea("");
+                    }}
+                  >
+                    + Agregar nueva
+                  </button>
+                )}
+                {newProgramArea !== null && (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      marginTop: 6,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div style={{ flex: "1 1 180px" }}>
+                      <Input
+                        value={newProgramArea}
+                        placeholder="Ej.: Secretaría de Salud municipal"
+                        maxLength={200}
+                        onChange={(e) => setNewProgramArea(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            saveNewProgramArea();
+                          }
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      disabled={createProgramAreaMutation.isPending}
+                      onClick={saveNewProgramArea}
+                    >
+                      Agregar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => setNewProgramArea(null)}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+                {programAreaError && (
+                  <span className="field-error">{programAreaError}</span>
+                )}
+              </div>
+            </FormRow>
+
+            <Field label="Destinatarios">
+              <Textarea
+                id="beneficiaries"
+                name="beneficiaries"
+                rows={2}
+                maxLength={3000}
+                value={form.beneficiaries}
+                onChange={handleChange}
+                disabled={!canEditSensitiveFields}
+                placeholder="Ej.: niños y niñas de 0 a 3 años y sus familias"
+              />
+              {fieldErrors.beneficiaries && (
+                <span className="field-error">{fieldErrors.beneficiaries[0]}</span>
+              )}
+            </Field>
+
+            <div>
+              <span
+                style={{
+                  display: "block",
+                  fontWeight: 600,
+                  fontSize: "0.875rem",
+                  marginBottom: 6,
+                }}
+              >
+                Articulaciones
+              </span>
+              <p
+                className="text-muted"
+                style={{ margin: "0 0 8px", fontSize: "0.8rem" }}
+              >
+                Efectores con los que trabaja. La relación es mutua: también
+                aparece en la ficha de la otra institución.
+              </p>
+              {articulations.length === 0 ? (
+                <p className="text-muted" style={{ margin: 0, fontSize: "0.875rem" }}>
+                  Sin articulaciones cargadas.
+                </p>
+              ) : (
+                <ul
+                  style={{
+                    listStyle: "none",
+                    margin: 0,
+                    padding: 0,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 6,
+                  }}
+                >
+                  {articulations.map((a) => (
+                    <li key={a.id}>
+                      <Badge tone={a.is_active ? "primary" : "neutral"}>
+                        {a.name}
+                        {a.type_label ? ` · ${a.type_label}` : ""}
+                        {!a.is_active ? " (inactiva)" : ""}
+                        {canEditSensitiveFields && (
+                          <button
+                            type="button"
+                            aria-label={`Quitar ${a.name}`}
+                            title="Quitar"
+                            onClick={() =>
+                              setArticulations((list) =>
+                                list.filter((x) => x.id !== a.id),
+                              )
+                            }
+                            style={{
+                              border: "none",
+                              background: "none",
+                              cursor: "pointer",
+                              padding: "0 0 0 4px",
+                              color: "inherit",
+                              fontWeight: 700,
+                            }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {canEditSensitiveFields && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 6,
+                    marginTop: 8,
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                  }}
+                >
+                  <div style={{ flex: "1 1 220px", maxWidth: 420 }}>
+                    <Select
+                      aria-label="Institución a articular"
+                      value={articulationToAdd}
+                      onChange={(e) => setArticulationToAdd(e.target.value)}
+                    >
+                      <option value="">Elegir institución…</option>
+                      {articulationCandidates.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.name}
+                          {i.type_label ? ` (${i.type_label})` : ""}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    disabled={!articulationToAdd}
+                    onClick={addArticulation}
+                  >
+                    + Agregar
+                  </button>
+                </div>
+              )}
+              {fieldErrors.articulation_ids && (
+                <span className="field-error">
+                  {fieldErrors.articulation_ids[0]}
+                </span>
+              )}
+            </div>
+
+            <Field label="Observaciones">
+              <Textarea
+                id="observations"
+                name="observations"
+                rows={4}
+                maxLength={10000}
+                value={form.observations}
+                onChange={handleChange}
+                disabled={!canEditSensitiveFields}
+              />
+              {fieldErrors.observations && (
+                <span className="field-error">{fieldErrors.observations[0]}</span>
+              )}
+            </Field>
+
             <div className={styles.actions}>
               <Button variant="secondary" onClick={handleCancel}>
                 Cancelar

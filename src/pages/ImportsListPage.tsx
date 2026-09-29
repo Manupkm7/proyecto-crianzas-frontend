@@ -45,6 +45,7 @@ const SOURCE_BADGE_CLASS: Record<ImportSource, string> = {
   civil_registry: "badge-blue",
   education: "badge-green",
   health: "badge-gray",
+  services: "badge-amber",
 };
 
 function formatDate(iso: string) {
@@ -704,6 +705,7 @@ const SOURCE_LABEL: Record<ImportSource, string> = {
   civil_registry: "Registro Civil",
   education: "Educación",
   health: "Salud",
+  services: "Prestaciones",
 };
 
 const INSTITUTION_TYPE_BY_SOURCE: Partial<
@@ -827,11 +829,12 @@ function SheetAssignmentRow({
           <div
             style={{
               display: "flex",
-              gap: "1.5rem",
-              marginBottom: institutionType ? 10 : 0,
+              flexWrap: "wrap",
+              gap: "0.5rem 1.5rem",
+              marginBottom: 10,
             }}
           >
-            {(["civil_registry", "education", "health"] as const).map((s) => (
+            {(["civil_registry", "education", "health", "services"] as const).map((s) => (
               <label
                 key={s}
                 style={{
@@ -855,6 +858,22 @@ function SheetAssignmentRow({
               </label>
             ))}
           </div>
+
+          {assignment.source === "services" && (
+            <p
+              style={{
+                margin: "0 0 10px",
+                fontSize: "0.8rem",
+                color: "var(--color-muted)",
+              }}
+            >
+              Una fila por prestación, de distintas instituciones (el mismo niño
+              puede repetirse). No se elige institución: cada fila trae su
+              Efector, que tiene que estar dado de alta como institución. Si el
+              efector es de Salud o de Cuidado y educación y el niño no tenía
+              institución en ese sector, queda asociado a él.
+            </p>
+          )}
 
           {institutionType && (
             <div style={{ marginBottom: 10 }}>

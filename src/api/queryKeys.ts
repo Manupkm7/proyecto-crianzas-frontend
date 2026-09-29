@@ -7,13 +7,27 @@ export const queryKeys = {
   },
   users: {
     all: ['users'] as const,
+    /** Listado sin el ámbito global del sidebar (ej. RolesPage). */
+    unscoped: ['users', 'unscoped'] as const,
     detail: (id: string) => ['users', id] as const,
     activity: (id: string) => ['users', id, 'activity'] as const,
   },
   institutions: {
     all: ['institutions'] as const,
+    /** Listado sin el ámbito global del sidebar (desplegables de formularios). */
+    unscoped: ['institutions', 'unscoped'] as const,
     detail: (id: string) => ['institutions', id] as const,
+    /** Todas (sin paginar) para desplegables — ej. efector de una prestación. */
+    allOptions: ['institutions', 'all-options'] as const,
   },
+  programAreas: ['program-areas'] as const,
+  serviceTypes: {
+    all: ['service-types'] as const,
+    list: (includeInactive: boolean) => ['service-types', { includeInactive }] as const,
+  },
+  childServices: (childId: string) => ['child-services', childId] as const,
+  /** Grilla general de prestaciones (GET /child-services). */
+  childServicesGrid: ['child-services-grid'] as const,
   imports: {
     all: ['imports'] as const,
     detail: (id: string) => ['imports', id] as const,

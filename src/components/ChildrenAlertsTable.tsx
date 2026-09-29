@@ -6,6 +6,7 @@ import { Table, type Column } from './Table'
 import { Badge } from './Badge'
 import { SearchInput } from './SearchInput'
 import { Button } from './Button'
+import { ServiceProvidersCell, ServicesSummaryCell } from './ChildServicesSummaryCells'
 import { getEducationLevelDefinitions, gradeLabel } from '../utils/educationLevels'
 import type { Child, EducationLevel, Institution } from '../types'
 import styles from './css/ChildrenAlertsTable.module.css'
@@ -26,6 +27,7 @@ export function ChildrenAlertsTable({ levelInstitution }: ChildrenAlertsTablePro
   const [searchInput, setSearchInput] = useState('')
   const [educationFilter, setEducationFilter] = useState<RecordFilter>('all')
   const [healthFilter, setHealthFilter] = useState<RecordFilter>('all')
+  const [servicesFilter, setServicesFilter] = useState<RecordFilter>('all')
   const [onlyAlerts, setOnlyAlerts] = useState(false)
   const [levelFilter, setLevelFilter] = useState('')
   const [gradeFilter, setGradeFilter] = useState('')
@@ -38,7 +40,7 @@ export function ChildrenAlertsTable({ levelInstitution }: ChildrenAlertsTablePro
 
   useEffect(() => {
     setPage(1)
-  }, [search, educationFilter, healthFilter, onlyAlerts, levelFilter, gradeFilter])
+  }, [search, educationFilter, healthFilter, servicesFilter, onlyAlerts, levelFilter, gradeFilter])
 
   useEffect(() => {
     setGradeFilter('')
@@ -48,6 +50,7 @@ export function ChildrenAlertsTable({ levelInstitution }: ChildrenAlertsTablePro
     search: search || undefined,
     has_education: educationFilter === 'all' ? undefined : educationFilter === 'yes',
     has_health: healthFilter === 'all' ? undefined : healthFilter === 'yes',
+    has_services: servicesFilter === 'all' ? undefined : servicesFilter === 'yes',
     alert: onlyAlerts || undefined,
     level: levelFilter || undefined,
     grade: gradeFilter ? Number(gradeFilter) : undefined,
@@ -79,7 +82,10 @@ export function ChildrenAlertsTable({ levelInstitution }: ChildrenAlertsTablePro
       header: 'Reg. educativo',
       render: (c) =>
         c.education_record ? (
-          <Badge tone="edu">{c.education_record.grade_label ?? 'Cargado'}</Badge>
+          <Badge tone="edu" title={c.education_record.institution?.name}>
+            {c.education_record.grade_label ?? 'Cargado'}
+            {c.education_record.institution && ` · ${c.education_record.institution.name}`}
+          </Badge>
         ) : (
           <Badge tone="neutral">Sin cargar</Badge>
         ),
@@ -89,10 +95,20 @@ export function ChildrenAlertsTable({ levelInstitution }: ChildrenAlertsTablePro
       header: 'Reg. de salud',
       render: (c) =>
         c.health_record ? (
-          <Badge tone="health">Cargado</Badge>
+          <Badge tone="health">{c.health_record.institution?.name ?? 'Cargado'}</Badge>
         ) : (
           <Badge tone="neutral">Sin cargar</Badge>
         ),
+    },
+    {
+      key: 'services',
+      header: 'Prestaciones',
+      render: (c) => <ServicesSummaryCell child={c} />,
+    },
+    {
+      key: 'providers',
+      header: 'Efectores',
+      render: (c) => <ServiceProvidersCell child={c} />,
     },
     {
       key: 'alerts',
@@ -145,6 +161,17 @@ export function ChildrenAlertsTable({ levelInstitution }: ChildrenAlertsTablePro
           <option value="all">Registro de salud: todos</option>
           <option value="yes">Con registro de salud</option>
           <option value="no">Sin registro de salud</option>
+        </select>
+
+        <select
+          className={styles.select}
+          value={servicesFilter}
+          onChange={(e) => setServicesFilter(e.target.value as RecordFilter)}
+          aria-label="Filtrar por prestaciones"
+        >
+          <option value="all">Prestaciones: todas</option>
+          <option value="yes">Con prestaciones</option>
+          <option value="no">Sin prestaciones</option>
         </select>
 
         {levelDefinitions.length > 0 && (

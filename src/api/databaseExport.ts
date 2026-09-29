@@ -12,6 +12,10 @@ export interface DatabaseExportFilters {
   // y de ahí a toda su ficha (instituciones, registros, observaciones, etc.).
   period_year?: number
   period_bimester?: number
+  // 1 = acotar al ámbito global activo del sidebar (header X-Locality-Scope,
+  // que viaja en todos los requests). Sin esto el export lo ignora. Se manda
+  // 1 y no true: la regla 'boolean' de Laravel no acepta el string "true".
+  apply_locality_scope?: 1
 }
 
 // Exportación completa de la base de datos (ZIP) — exclusivo del administrador.

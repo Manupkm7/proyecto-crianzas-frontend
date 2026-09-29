@@ -1426,6 +1426,37 @@ function EditRowForm({
           </EditField>
         </>
       )}
+
+      {/* Prestación de la misma fila: período, efector, sector y prestación ya se
+          validaron al procesar el archivo — acá solo se corrige la alerta (y la
+          observación, si la fuente no la ofrece ya arriba). */}
+      {rowHasService(row) && (
+        <>
+          {row.source !== "health" && (
+            <EditField label="Observaciones de la prestación">
+              <input
+                style={editInputStyle}
+                value={textValue("observations", row.observations)}
+                onChange={(e) => set("observations", e.target.value)}
+              />
+            </EditField>
+          )}
+          <EditField label="Alerta de la prestación">
+            <select
+              style={editInputStyle}
+              value={
+                (overrides.alert !== undefined ? overrides.alert : row.alert)
+                  ? "true"
+                  : "false"
+              }
+              onChange={(e) => set("alert", e.target.value === "true")}
+            >
+              <option value="false">No</option>
+              <option value="true">Sí</option>
+            </select>
+          </EditField>
+        </>
+      )}
     </div>
   );
 }
@@ -1561,7 +1592,32 @@ function rowFields(row: ImportRow): { label: string; value: string }[] {
       fields.push({ label: "Observaciones", value: row.observations });
   }
 
+  // Prestación que viene en la misma fila (cualquier fuente) — mismo flujo de
+  // matcheo: al confirmar el niño se carga también la prestación.
+  if (rowHasService(row)) {
+    if (row.period_label)
+      fields.push({ label: "Período", value: row.period_label });
+    if (row.service_name)
+      fields.push({
+        label: "Prestación",
+        value:
+          row.service_number != null
+            ? `${row.service_name} (Nro ${row.service_number})`
+            : row.service_name,
+      });
+    if (row.sector_label) fields.push({ label: "Sector", value: row.sector_label });
+    if (row.provider_name) fields.push({ label: "Efector", value: row.provider_name });
+    if (row.observations && row.source !== "health")
+      fields.push({ label: "Observaciones", value: row.observations });
+    fields.push({ label: "Alerta", value: row.alert ? "SÍ" : "No" });
+  }
+
   return fields;
+}
+
+/** ¿La fila trae además una prestación? (columnas de prestación en la misma hoja) */
+function rowHasService(row: ImportRow): boolean {
+  return Boolean(row.service_name || row.period_label);
 }
 
 function DataPanel({

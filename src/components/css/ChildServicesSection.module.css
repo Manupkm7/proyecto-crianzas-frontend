@@ -1,0 +1,173 @@
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.group {
+  margin-top: 16px;
+}
+
+.groupTitle {
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin: 0 0 8px;
+}
+
+.missing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #a9741f;
+  background: var(--amber-soft);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0 0 8px;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.table thead th {
+  text-align: left;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  padding: 10px 12px;
+  background-color: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  color: var(--text);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.rowAlert td {
+  background-color: var(--amber-soft);
+}
+
+.obsCell {
+  min-width: 200px;
+  max-width: 360px;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.muted {
+  color: var(--text-soft);
+}
+
+.mandatoryTag {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary-hover);
+  background: var(--primary-soft);
+  border-radius: 999px;
+  padding: 2px 7px;
+  vertical-align: middle;
+}
+
+.actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.iconBtn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.linkBtn {
+  margin-left: 6px;
+  border: none;
+  background: none;
+  color: var(--danger, #c53030);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px;
+}
+.linkBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* En pantallas angostas cada fila se apila como una tarjeta. */
+@media (max-width: 640px) {
+  .table thead {
+    display: none;
+  }
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .table tbody tr {
+    border-bottom: 1px solid var(--border);
+    padding: 6px 0;
+  }
+  .table tbody tr:last-child {
+    border-bottom: none;
+  }
+  .table tbody td {
+    border-bottom: none;
+    padding: 4px 12px;
+  }
+  .table tbody td[data-label]::before {
+    content: attr(data-label) ': ';
+    font-weight: 700;
+    color: var(--text-soft);
+  }
+  .obsCell {
+    max-width: none;
+    min-width: 0;
+  }
+  .actions {
+    text-align: left;
+  }
+}

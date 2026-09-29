@@ -14,10 +14,12 @@ import { Table, type Column } from "../components/Table";
 import { EmptyState } from "../components/EmptyState";
 import list from "./css/list.module.css";
 
+// Respaldo si el backend no mandara type_label (sector = tipo, ver App\Support\Sector).
 const TYPE_LABELS: Record<InstitutionType, string> = {
   salud: "Salud",
-  educacion: "Educación",
-  desarrollo_social: "Desarrollo Social",
+  educacion: "Cuidado y educación",
+  desarrollo_social: "Protección social",
+  recreacion: "Recreación, deporte y cultura",
   justicia: "Justicia",
   otro: "Otro",
 };
@@ -30,7 +32,7 @@ export default function InstitutionsListPage() {
     data: institutions = [],
     isLoading: loading,
     error: queryError,
-  } = useInstitutionsQuery();
+  } = useInstitutionsQuery({ scoped: true });
   const deleteInstitutionMutation = useDeleteInstitutionMutation();
 
   const authRole = authUser?.roles?.[0];
@@ -58,10 +60,21 @@ export default function InstitutionsListPage() {
 
   const filtered = institutions.filter((inst) => {
     if (!search) return true;
-    return inst.name.toLowerCase().includes(search.toLowerCase());
+    return (
+      inst.name.toLowerCase().includes(search.toLowerCase()) ||
+      String(inst.code ?? "") === search.trim()
+    );
   });
 
   const columns: Column<Institution>[] = [
+    {
+      key: "code",
+      header: "ID",
+      width: "70px",
+      render: (inst) => (
+        <span style={{ color: "var(--text-muted)" }}>{inst.code ?? "—"}</span>
+      ),
+    },
     {
       key: "name",
       header: "Nombre",
@@ -73,8 +86,8 @@ export default function InstitutionsListPage() {
     },
     {
       key: "type",
-      header: "Tipo",
-      render: (inst) => TYPE_LABELS[inst.type] ?? inst.type,
+      header: "Sector",
+      render: (inst) => inst.type_label ?? TYPE_LABELS[inst.type] ?? inst.type,
     },
     {
       key: "jurisdiction",
@@ -136,8 +149,8 @@ export default function InstitutionsListPage() {
     <div>
       <PageHeader
         eyebrow="Gestión"
-        title="Instituciones"
-        subtitle="Creá, modificá o desactivá instituciones educativas y de salud del sistema."
+        title="Efectores"
+        subtitle="Creá, modificá o desactivá Efectores del sistema."
         actions={
           canCreate ? (
             <Link to="/institutions/new" className="btn btn-primary">
@@ -157,13 +170,13 @@ export default function InstitutionsListPage() {
         <span className={list.count}>
           {loading
             ? "Cargando…"
-            : `${filtered.length} ${filtered.length === 1 ? "institución" : "instituciones"}`}
+            : `${filtered.length} ${filtered.length === 1 ? "Efector" : "Efectores"}`}
         </span>
       </div>
 
       {queryError && (
         <div className="alert alert-error">
-          Error al cargar las instituciones.
+          Error al cargar los Efectores.
         </div>
       )}
 
@@ -175,11 +188,11 @@ export default function InstitutionsListPage() {
         empty={
           <EmptyState
             icon={<IconBuilding size={26} />}
-            title="No se encontraron instituciones"
+            title="No se encontraron Efectores"
             description={
               search
                 ? "Probá con otro nombre."
-                : "No hay instituciones en el sistema."
+                : "No hay Efectores en el sistema."
             }
             action={
               canCreate && !search ? (
