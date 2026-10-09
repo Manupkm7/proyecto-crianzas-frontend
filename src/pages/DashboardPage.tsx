@@ -193,7 +193,7 @@ export default function DashboardPage() {
       )}
 
       {isRepresentante && institutionType && (
-        <div className="info-box mt-4">
+        <div className="info-box mt-3">
           <strong>Acceso de representante:</strong> solo ves los niños y
           registros vinculados a tu institución ({institutionName}).
           {institutionType === "educacion" &&
