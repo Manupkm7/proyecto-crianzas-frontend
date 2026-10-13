@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import {
   createChildService,
   createServiceType,
@@ -77,24 +77,26 @@ export function useSaveChildServiceMutation(childId: string) {
   return useMutation({
     mutationFn: ({ id, ...data }: ChildServicePayload & { id?: string }) =>
       id ? updateChildService(childId, id, data) : createChildService(childId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.childServices(childId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.childServicesGrid })
-      // Las prestaciones alimentan las alertas del SAT del niño.
-      queryClient.invalidateQueries({ queryKey: queryKeys.children.detail(childId) })
-    },
+    onSuccess: () => invalidateAfterServiceChange(queryClient, childId),
   })
+}
+
+// Crear/editar/dar de baja una prestación cambia: la grilla, las alertas del SAT
+// del niño, y también la LISTA de niños (columna de prestaciones y el filtro
+// global de fecha de prestaciones: editar el período o dar de baja la única
+// prestación del rango saca al niño de la lista). children.all es prefijo de
+// children.detail, así que cubre ambos.
+function invalidateAfterServiceChange(queryClient: QueryClient, childId: string) {
+  queryClient.invalidateQueries({ queryKey: queryKeys.childServices(childId) })
+  queryClient.invalidateQueries({ queryKey: queryKeys.childServicesGrid })
+  queryClient.invalidateQueries({ queryKey: queryKeys.children.all })
 }
 
 export function useDeleteChildServiceMutation(childId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (serviceId: string) => deleteChildService(childId, serviceId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.childServices(childId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.childServicesGrid })
-      queryClient.invalidateQueries({ queryKey: queryKeys.children.detail(childId) })
-    },
+    onSuccess: () => invalidateAfterServiceChange(queryClient, childId),
   })
 }
 

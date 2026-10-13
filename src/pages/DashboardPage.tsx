@@ -11,6 +11,7 @@ import { ChildServicesGrid } from "../components/ChildServicesGrid";
 import { EducationLevelDashboard } from "../components/EducationLevelDashboard";
 import { useChildrenQuery } from "../hooks/useChildren";
 import { useInstitutionsQuery } from "../hooks/useInstitutions";
+import { GlobalFiltersBar } from "../components/Layout/GlobalFiltersBar";
 
 interface Stat {
   label: string;
@@ -129,6 +130,8 @@ export default function DashboardPage() {
               </p>
             </div>
         </section>
+        {/* Mismos filtros globales que el sidebar (comparten estado) */}
+        <GlobalFiltersBar />
         {isEducationInstitutionalUser ? (
           <>
             <h2 className={styles.sectionTitle}>Niños por grado</h2>

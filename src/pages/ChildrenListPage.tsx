@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useLocalityScope } from "../context/LocalityScopeContext";
+import { useServicesDateRange } from "../context/ServicesDateRangeContext";
 import { useChildrenQuery } from "../hooks/useChildren";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { PageHeader } from "../components/PageHeader";
@@ -24,6 +25,7 @@ export default function ChildrenListPage() {
   // El filtro por localidad es global (sidebar → header X-Locality-Scope);
   // acá solo se usa para volver a la página 1 cuando cambia.
   const { scope } = useLocalityScope();
+  const { range: servicesRange } = useServicesDateRange();
   const [searchInput, setSearchInput] = useState("");
   const [servicesFilter, setServicesFilter] = useState<"all" | "yes" | "no">(
     "all",
@@ -33,7 +35,7 @@ export default function ChildrenListPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, scope, servicesFilter]);
+  }, [search, scope, servicesRange, servicesFilter]);
 
   const {
     data,

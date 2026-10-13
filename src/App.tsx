@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { LocalityScopeProvider } from './context/LocalityScopeContext'
+import { ServicesDateRangeProvider } from './context/ServicesDateRangeContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
 import InstitutionalLoginPage from './pages/InstitutionalLoginPage'
@@ -25,6 +26,7 @@ export default function App() {
   return (
     <AuthProvider>
       <LocalityScopeProvider>
+      <ServicesDateRangeProvider>
       <BrowserRouter>
         <Routes>
           {/* Públicas */}
@@ -205,6 +207,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      </ServicesDateRangeProvider>
       </LocalityScopeProvider>
     </AuthProvider>
   )

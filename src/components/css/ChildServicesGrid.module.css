@@ -10,3 +10,21 @@
 .muted {
   color: var(--text-soft);
 }
+
+/* Formulario de edición de una prestación, arriba de la grilla */
+.editor {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  scroll-margin-top: calc(var(--topbar-h) + 12px);
+}
+
+.editorTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 4px;
+}

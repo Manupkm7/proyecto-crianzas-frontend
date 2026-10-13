@@ -144,6 +144,97 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* Barra de filtros globales del dashboard (mismos filtros que el sidebar) */
+.filtersBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px 32px;
+  margin-top: 12px;
+  margin-bottom: 12px;;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+}
+
+.filterInline {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.filterInline .navLabel {
+  padding: 0 0 6px;
+}
+.filterInline .dateGrid {
+  grid-template-columns: repeat(2, minmax(140px, 180px));
+}
+.filterInline .scopeBtn {
+  padding: 7px 12px;
+}
+
+@media (max-width: 560px) {
+  .filtersBar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .filterInline .dateGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Fecha de prestaciones (desde / hasta) */
+.dateGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.dateField {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.dateInput {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 6px;
+  font-size: 12.5px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+.dateError {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--danger, #b42318);
+}
+
+.dateClear {
+  align-self: flex-start;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary-hover);
+}
+.dateClear:hover {
+  text-decoration: underline;
+}
+
+.scopeChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
 .scopeChip {
   display: inline-flex;
   align-items: center;

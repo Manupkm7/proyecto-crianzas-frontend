@@ -2,10 +2,15 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useLocalityScope } from "../../context/LocalityScopeContext";
+import { useServicesDateRange } from "../../context/ServicesDateRangeContext";
+import { localityScopeLabel } from "../../api/localityScope";
+import { LocalityScopeFilter } from "./LocalityScopeFilter";
 import {
-  LOCALITY_SCOPE_OPTIONS,
-  localityScopeLabel,
-} from "../../api/localityScope";
+  EMPTY_SERVICES_DATE_RANGE,
+  isServicesDateRangeActive,
+  servicesDateRangeLabel,
+} from "../../api/servicesDateRange";
+import { ServicesDateRangeFilter } from "./ServicesDateRangeFilter";
 import { Avatar } from "../Avatar";
 import {
   IconActivity,
@@ -37,7 +42,8 @@ export function AppContainer({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const { scope, setScope, canChoose: canChooseScope } = useLocalityScope();
+  const { scope, setScope } = useLocalityScope();
+  const { range: dateRange, setRange: setDateRange } = useServicesDateRange();
 
   const role = user?.roles?.[0];
   const isAdmin = role === "admin";
@@ -162,36 +168,11 @@ export function AppContainer({ children }: { children: ReactNode }) {
           })}
         </nav>
 
+        {/* Fecha de prestaciones: trae los períodos (TRIM/BIM) que se cruzan con el rango */}
+        <ServicesDateRangeFilter />
+
         {/* Ámbito global: acota los listados de toda la plataforma a una localidad */}
-        {canChooseScope && (
-          <div className={styles.scope}>
-            <span className={styles.navLabel} id="locality-scope-label">
-              Ámbito
-            </span>
-            <div
-              className={styles.scopeGroup}
-              role="radiogroup"
-              aria-labelledby="locality-scope-label"
-            >
-              {LOCALITY_SCOPE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={scope === opt.value}
-                  title={opt.label}
-                  className={cx(
-                    styles.scopeBtn,
-                    scope === opt.value && styles.scopeBtnActive,
-                  )}
-                  onClick={() => setScope(opt.value)}
-                >
-                  {opt.short}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        <LocalityScopeFilter />
 
         <div className={styles.sidebarFooter}>
           <div className={styles.userCard}>
@@ -226,17 +207,30 @@ export function AppContainer({ children }: { children: ReactNode }) {
               <strong>{currentTitle}</strong>
             </p>
             {/* Recordatorio visible: los números NO son de todo el sistema */}
-            {scope && (
-              <button
-                type="button"
-                className={styles.scopeChip}
-                title="Quitar el filtro de ámbito"
-                onClick={() => setScope("")}
-              >
-                Viendo: {localityScopeLabel(scope)}
-                <span aria-hidden="true">×</span>
-              </button>
-            )}
+            <div className={styles.scopeChips}>
+              {scope && (
+                <button
+                  type="button"
+                  className={styles.scopeChip}
+                  title="Quitar el filtro de ámbito"
+                  onClick={() => setScope("")}
+                >
+                  Viendo: {localityScopeLabel(scope)}
+                  <span aria-hidden="true">×</span>
+                </button>
+              )}
+              {isServicesDateRangeActive(dateRange) && (
+                <button
+                  type="button"
+                  className={styles.scopeChip}
+                  title="Quitar el filtro de fecha de prestaciones"
+                  onClick={() => setDateRange(EMPTY_SERVICES_DATE_RANGE)}
+                >
+                  Prestaciones: {servicesDateRangeLabel(dateRange)}
+                  <span aria-hidden="true">×</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className={styles.topbarRight}>

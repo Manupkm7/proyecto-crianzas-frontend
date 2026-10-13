@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { getLocalityScope, LOCALITY_SCOPE_HEADER } from './localityScope'
+import { getServicesDateRange, SERVICES_FROM_HEADER, SERVICES_TO_HEADER } from './servicesDateRange'
 
 // Instancia de axios preconfigurada para hablar con el backend Laravel.
 // Todos los requests de la aplicación pasan por aquí.
@@ -23,6 +24,11 @@ api.interceptors.request.use((config) => {
   if (scope && config.headers[LOCALITY_SCOPE_HEADER] === undefined) {
     config.headers[LOCALITY_SCOPE_HEADER] = scope
   }
+  // Fecha de prestaciones del sidebar (ver servicesDateRange.ts). Solo la usan
+  // los endpoints de niños/prestaciones; el resto del backend la ignora.
+  const { from, to } = getServicesDateRange()
+  if (from) config.headers[SERVICES_FROM_HEADER] = from
+  if (to) config.headers[SERVICES_TO_HEADER] = to
   return config
 })
 

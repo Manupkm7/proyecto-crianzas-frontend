@@ -1,7 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useChildServicesGridQuery } from '../hooks/useServices'
+import {
+  useChildServicesGridQuery,
+  useDeleteChildServiceMutation,
+  useSaveChildServiceMutation,
+} from '../hooks/useServices'
+import { useRole } from '../hooks/useRole'
+import {
+  ChildServiceForm,
+  serviceErrorMessage,
+  serviceFormFrom,
+  servicePayloadFrom,
+  validateServiceForm,
+  type ServiceForm,
+} from './ChildServiceForm'
+import { IconEdit } from './icons'
+import section from './css/ChildServicesSection.module.css'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import { useLocalityScope } from '../context/LocalityScopeContext'
+import { useServicesDateRange } from '../context/ServicesDateRangeContext'
 import { Table, type Column } from './Table'
 import { Badge } from './Badge'
 import { SearchInput } from './SearchInput'
@@ -16,17 +33,119 @@ const PER_PAGE = 25
 // Efector, Nombre prestación, Observaciones, Alerta). Un mismo niño aparece
 // tantas veces como prestaciones tenga (de distintos efectores). Filtros y
 // permisos los resuelve el backend (GET /child-services).
+//
+// Edición y baja desde la misma grilla, con las reglas de la ficha del niño
+// (ver ChildServicePolicy): el admin edita todo, elige efector y da de baja; el
+// usuario institucional edita las suyas (la grilla ya solo le muestra esas);
+// el coordinador solo lee.
+
+// Formulario de edición de UNA prestación de la grilla. Componente aparte porque
+// los hooks de mutación están atados al niño de la prestación.
+function GridServiceEditor({
+  service,
+  isAdmin,
+  onDone,
+}: {
+  service: ChildService
+  isAdmin: boolean
+  onDone: () => void
+}) {
+  const saveMutation = useSaveChildServiceMutation(service.child_id)
+  const [form, setForm] = useState<ServiceForm>(() => serviceFormFrom(service))
+  const [error, setError] = useState<string | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // La grilla puede ser larga: llevar el formulario a la vista al abrirlo.
+  useEffect(() => {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [service.id])
+
+  async function handleSave() {
+    const invalid = validateServiceForm(form, isAdmin)
+    setError(invalid)
+    if (invalid) return
+    try {
+      await saveMutation.mutateAsync({ id: service.id, ...servicePayloadFrom(form, isAdmin) })
+      onDone()
+    } catch (err) {
+      setError(serviceErrorMessage(err, 'No se pudo guardar la prestación.'))
+    }
+  }
+
+  return (
+    <div ref={ref} className={grid.editor}>
+      <p className={grid.editorTitle}>
+        Editando: {service.service_type?.name ?? 'Prestación'} · {service.period_code}
+        {service.child && (
+          <>
+            {' '}
+            — {service.child.first_name} {service.child.last_name}
+          </>
+        )}
+      </p>
+      <ChildServiceForm
+        form={form}
+        onChange={setForm}
+        isAdmin={isAdmin}
+        error={error}
+        saving={saveMutation.isPending}
+        onSave={handleSave}
+        onCancel={onDone}
+      />
+    </div>
+  )
+}
+
+function GridServiceDeleteButton({ service, onDeleted }: { service: ChildService; onDeleted: () => void }) {
+  const deleteMutation = useDeleteChildServiceMutation(service.child_id)
+
+  async function handleDelete() {
+    const childName = service.child ? ` de ${service.child.first_name} ${service.child.last_name}` : ''
+    if (!window.confirm(`¿Dar de baja la prestación "${service.service_type?.name}"${childName} (${service.period_label})?`)) return
+    try {
+      await deleteMutation.mutateAsync(service.id)
+      onDeleted()
+    } catch (err) {
+      window.alert(serviceErrorMessage(err, 'No se pudo dar de baja la prestación.'))
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className={section.linkBtn}
+      onClick={handleDelete}
+      disabled={deleteMutation.isPending}
+    >
+      Baja
+    </button>
+  )
+}
+
 export function ChildServicesGrid() {
+  const { isAdmin, isInstitutionalUser } = useRole()
+  // Mismo criterio que la ficha del niño; el backend revalida con ChildServicePolicy.
+  const canEdit = isAdmin || isInstitutionalUser
+  const [editing, setEditing] = useState<ChildService | null>(null)
+
   const [period, setPeriod] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [onlyAlerts, setOnlyAlerts] = useState(false)
   const [page, setPage] = useState(1)
 
   const search = useDebouncedValue(searchInput)
+  // Filtros globales del sidebar (viajan como headers): solo para volver a la página 1.
+  const { scope } = useLocalityScope()
+  const { range: servicesRange } = useServicesDateRange()
 
   useEffect(() => {
     setPage(1)
-  }, [period, search, onlyAlerts])
+  }, [period, search, onlyAlerts, scope, servicesRange])
+
+  // El select de período solo ofrece los del rango: el elegido puede quedar afuera.
+  useEffect(() => {
+    setPeriod('')
+  }, [servicesRange])
 
   const { data, isLoading, isFetching, error } = useChildServicesGridQuery({
     period: period || undefined,
@@ -99,6 +218,34 @@ export function ChildServicesGrid() {
       render: (s) =>
         s.has_alert ? <Badge tone="danger">SI</Badge> : <span className={grid.muted}>NO</span>,
     },
+    ...(canEdit
+      ? [
+          {
+            key: 'actions',
+            header: '',
+            align: 'right' as const,
+            render: (s: ChildService) => (
+              <span className={section.actions}>
+                <button
+                  type="button"
+                  className={section.iconBtn}
+                  onClick={() => setEditing(s)}
+                  title="Editar"
+                  aria-label="Editar prestación"
+                >
+                  <IconEdit size={14} />
+                </button>
+                {isAdmin && (
+                  <GridServiceDeleteButton
+                    service={s}
+                    onDeleted={() => setEditing((cur) => (cur?.id === s.id ? null : cur))}
+                  />
+                )}
+              </span>
+            ),
+          },
+        ]
+      : []),
   ]
 
   return (
@@ -138,6 +285,15 @@ export function ChildServicesGrid() {
       </div>
 
       {error && <div className="alert alert-error">Error al cargar las prestaciones.</div>}
+
+      {editing && (
+        <GridServiceEditor
+          key={editing.id}
+          service={editing}
+          isAdmin={isAdmin}
+          onDone={() => setEditing(null)}
+        />
+      )}
 
       <Table
         columns={columns}
